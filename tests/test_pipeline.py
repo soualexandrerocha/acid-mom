@@ -25,7 +25,16 @@ def test_keyword_filter():
     assert not extract.passes_keyword_filter("Live firing exercise", "")
 
 
+def test_process_waits_for_api_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    conn = db.connect(":memory:")
+    db.save_items(conn, [db.SourceItem("B", "https://b/1", "Bulk carrier aground")])
+    cli.cmd_process(conn, limit=10)
+    assert conn.execute("SELECT status FROM source_item").fetchone()[0] == "new"
+
+
 def test_process_skips_filtered_items_and_builds_incidents(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "teste")
     conn = db.connect(":memory:")
     db.save_items(conn, [db.SourceItem("A", "https://a/1", "Freight rates rise"),
                          db.SourceItem("B", "https://b/1", "Bulk carrier Star Alpha aground", "near Santos")])
@@ -44,6 +53,7 @@ def test_process_skips_filtered_items_and_builds_incidents(monkeypatch):
 
 
 def test_irrelevant_items_create_nothing(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "teste")
     conn = db.connect(":memory:")
     db.save_items(conn, [db.SourceItem("B", "https://b/2", "Fishing boat capsized")])
     monkeypatch.setattr(cli.anthropic, "Anthropic", lambda: FakeClient(mention(is_relevant=False)))

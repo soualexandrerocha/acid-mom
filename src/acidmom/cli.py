@@ -9,6 +9,7 @@
 
 import argparse
 import logging
+import os
 import tomllib
 
 import anthropic
@@ -24,6 +25,9 @@ def cmd_collect(conn, config) -> None:
 
 
 def cmd_process(conn, limit: int) -> None:
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        log.warning("ANTHROPIC_API_KEY não configurada; os itens coletados ficam para a próxima rodada.")
+        return
     rows = conn.execute(
         "SELECT * FROM source_item WHERE status = 'new' ORDER BY id LIMIT ?", (limit,)
     ).fetchall()
