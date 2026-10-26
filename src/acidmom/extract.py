@@ -15,7 +15,7 @@ import anthropic
 log = logging.getLogger(__name__)
 
 # Modelo do Claude usado na extração; dá para trocar pela variável de ambiente ACIDMOM_MODEL.
-MODEL = os.environ.get("ACIDMOM_MODEL") or "claude-opus-5-5"
+MODEL = os.environ.get("ACIDMOM_MODEL") or "claude-haiku-5-5"
 
 ACCIDENT_TERMS = re.compile(
     r"collision|collided|allision|aground|grounding|grounded|\bfire\b|blaze|explosion|exploded|"

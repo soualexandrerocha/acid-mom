@@ -29,7 +29,7 @@ Tudo roda no próprio GitHub (GitHub Actions), sem servidor. Você só precisa c
 | `SMTP_PASSWORD` | Para Gmail, uma "senha de app" (não a senha normal): [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) |
 | `EMAIL_TO` | Quem recebe os avisos (pode ser o mesmo e-mail) |
 
-Opcional, em **Variables** (não em Secrets): `ACIDMOM_MODEL` troca o modelo do Claude usado na leitura. O padrão é `claude-opus-5-5`; `claude-haiku-5-5` custa bem menos.
+Opcional, em **Variables** (não em Secrets): `ACIDMOM_MODEL` troca o modelo do Claude usado na leitura. O padrão é `claude-haiku-5-5`, o mais barato; `claude-opus-5-5` lê melhor textos difíceis, mas custa bem mais.
 
 Depois disso, vá em **Actions → Rastreador → Run workflow** para rodar a primeira vez sem esperar a próxima hora cheia.
 
