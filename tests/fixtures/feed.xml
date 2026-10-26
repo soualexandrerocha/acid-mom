@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Exemplo</title>
+<item><title>Bulk carrier runs aground off Brazil</title><link>https://example.com/aground</link>
+<pubDate>Mon, 26 Oct 2026 10:00:00 +0000</pubDate>
+<description>&lt;p&gt;The bulk carrier &lt;b&gt;Star Alpha&lt;/b&gt; ran aground near Santos.&lt;/p&gt;</description></item>
+<item><title>Freight rates rise in Q3</title><link>https://example.com/rates</link>
+<pubDate>Mon, 26 Oct 2026 09:00:00 +0000</pubDate><description>Market report.</description></item>
+</channel></rss>

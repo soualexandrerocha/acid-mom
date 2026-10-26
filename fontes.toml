@@ -1,0 +1,30 @@
+# Fontes coletadas pela ferramenta. Para adicionar um site, copie um bloco [[rss]].
+# Os endereços abaixo ainda precisam ser confirmados na primeira execução real.
+
+[[rss]]
+nome = "gCaptain"
+url = "https://gcaptain.com/feed/"
+
+[[rss]]
+nome = "Splash247"
+url = "https://splash247.com/feed/"
+
+[[rss]]
+nome = "The Maritime Executive"
+url = "https://maritime-executive.com/articles.rss"
+
+[[rss]]
+nome = "Safety4Sea"
+url = "https://safety4sea.com/feed/"
+
+[gdelt]
+# Busca de notícias no mundo todo, a cada execução, nas últimas N horas.
+horas = 24
+consultas = [
+    '("cargo ship" OR "bulk carrier" OR "container ship" OR tanker OR freighter) (collision OR aground OR grounding OR fire OR explosion OR sank OR capsized OR "abandon ship")',
+    '(navio OR graneleiro OR "porta-contêineres" OR petroleiro) (colisão OR encalhe OR incêndio OR naufrágio OR explosão)',
+]
+
+[navarea]
+# Avisos náuticos ativos da NGA (EUA), cobrindo todas as áreas NAVAREA.
+url = "https://msi.nga.mil/api/publications/broadcast-warn?output=json&status=A"
