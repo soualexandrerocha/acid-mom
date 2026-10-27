@@ -31,6 +31,21 @@ def passes_keyword_filter(title: str, body: str) -> bool:
     return bool(ACCIDENT_TERMS.search(f"{title}\n{body}"))
 
 
+# Ataques ficam fora do escopo. Muitas notícias (as do Google News) chegam só com o título,
+# e sem o texto o Claude não percebe que "bateu numa mina" é um ataque; por isso o título
+# é barrado antes. Só o título: o texto de uma matéria longa pode citar essas palavras de passagem.
+ATTACK_TERMS = re.compile(
+    r"\bmines?\b|\bmined\b|missile|\bdrones?\b|torpedo|projectile|houthi|\battack|\bstrikes? on\b|"
+    r"pirat|hijack|\bseiz|\bboarded by\b|"
+    r"\bminas?\b|m[ií]ssil|ataque|atacad|pirata|sequestr|apreendid|houthis?",
+    re.IGNORECASE,
+)
+
+
+def is_attack(title: str) -> bool:
+    return bool(ATTACK_TERMS.search(title))
+
+
 EVENT_TYPES = [
     "collision", "contact", "grounding", "fire_explosion", "flooding_foundering",
     "capsizing", "loss_of_control", "hull_failure", "cargo_loss", "occupational_fatality", "other",
@@ -69,6 +84,7 @@ SCHEMA = {
         "lat": _nullable("number"),
         "lon": _nullable("number"),
         "coords_approximate": {"type": "boolean"},
+        "cause_uncertain": {"type": "boolean"},
         "dead": _nullable("integer"),
         "missing": _nullable("integer"),
         "injured": _nullable("integer"),
@@ -78,7 +94,7 @@ SCHEMA = {
     },
     "required": [
         "is_relevant", "reason", "vessels", "event_date", "event_type", "severity", "location",
-        "country", "lat", "lon", "coords_approximate", "dead", "missing", "injured", "pollution", "summary_pt", "evidence",
+        "country", "lat", "lon", "coords_approximate", "cause_uncertain", "dead", "missing", "injured", "pollution", "summary_pt", "evidence",
     ],
     "additionalProperties": False,
 }
@@ -113,6 +129,10 @@ warnings often do), use them and set coords_approximate false. Otherwise, if it 
 place (a port, strait, cape, island, city or small sea area), give that place's approximate \
 coordinates and set coords_approximate true. If it names only a country or an ocean, or nothing, \
 use null and set coords_approximate true.
+- cause_uncertain: true when the ship had a fire, explosion, sinking or hull damage in an area of \
+armed conflict (Persian Gulf, Strait of Hormuz, Gulf of Oman, Red Sea, Gulf of Aden, Black Sea) \
+and the text does not state a non-hostile cause (such as an engine room fire, a collision or bad \
+weather). Otherwise false.
 - dead/missing/injured: numbers stated in the text, else null.
 - summary_pt: one or two sentences in Brazilian Portuguese.
 - evidence: the short quote from the text that best supports is_relevant."""

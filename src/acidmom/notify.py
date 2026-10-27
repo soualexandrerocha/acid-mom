@@ -30,6 +30,8 @@ EVENT_PT = {
     "other": "outro",
 }
 ALERT_SEVERITIES = ("very_serious",)
+# Aviso imediato só para acidentes recentes; os mais antigos vão para o mapa e o relatório.
+ALERT_MAX_AGE_DAYS = 3
 
 
 def _sources(conn: sqlite3.Connection, incident_id: int) -> list[sqlite3.Row]:
@@ -59,6 +61,8 @@ def format_incident(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[str, st
         ("IMO", row["imo"] or "não informado"),
         ("Vítimas", _victims(row) or "nenhuma informada"),
     ]
+    if row["cause_uncertain"]:
+        details.append(("Causa", "incerta: zona de conflito, pode ter sido ataque"))
     sources = _sources(conn, row["id"])
     text = "\n".join([title, row["summary"] or "", *(f"{k}: {v}" for k, v in details), "Fontes:",
                       *(f"- {s['source']}: {s['url']}" for s in sources)])
@@ -96,8 +100,10 @@ def send_alerts(conn: sqlite3.Connection) -> int:
     """Um e-mail por acidente muito grave ainda não avisado."""
     rows = conn.execute(
         f"SELECT * FROM incident WHERE alert_sent_at IS NULL AND severity IN "
-        f"({','.join('?' * len(ALERT_SEVERITIES))}) ORDER BY created_at",
-        ALERT_SEVERITIES,
+        f"({','.join('?' * len(ALERT_SEVERITIES))}) "
+        f"AND NOT COALESCE(cause_uncertain, 0) "
+        f"AND COALESCE(event_date, date(created_at)) >= date('now', ?) ORDER BY created_at",
+        (*ALERT_SEVERITIES, f"-{ALERT_MAX_AGE_DAYS} days"),
     ).fetchall()
     for row in rows:
         text, html_body = format_incident(conn, row)

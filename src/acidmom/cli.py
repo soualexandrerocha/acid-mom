@@ -43,12 +43,14 @@ def cmd_process(conn, limit: int) -> None:
         "SELECT * FROM source_item WHERE status = 'new' ORDER BY id LIMIT ?", (limit,)
     ).fetchall()
     client = None
-    counts = {"too_old": 0, "filtered_out": 0, "not_relevant": 0, "extracted": 0, "error": 0, "new_incidents": 0}
+    counts = {"too_old": 0, "filtered_out": 0, "attack": 0, "not_relevant": 0, "extracted": 0, "error": 0, "new_incidents": 0}
     for row in rows:
         if is_too_old(row["published_at"]):
             status = "too_old"
         elif not extract.passes_keyword_filter(row["title"], row["body"]):
             status = "filtered_out"
+        elif extract.is_attack(row["title"]):
+            status = "attack"
         else:
             client = client or anthropic.Anthropic()
             try:

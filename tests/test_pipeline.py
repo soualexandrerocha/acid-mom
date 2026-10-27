@@ -45,7 +45,8 @@ def test_process_skips_filtered_items_and_builds_incidents(monkeypatch):
     conn = db.connect(":memory:")
     db.save_items(conn, [db.SourceItem("A", "https://a/1", "Freight rates rise"),
                          db.SourceItem("B", "https://b/1", "Bulk carrier Star Alpha aground", "near Santos")])
-    fake = FakeClient(mention(severity="very_serious", dead=1))
+    today = datetime.now(timezone.utc).date().isoformat()
+    fake = FakeClient(mention(severity="very_serious", dead=1, event_date=today))
     monkeypatch.setattr(cli.anthropic, "Anthropic", lambda: fake)
     cli.cmd_process(conn, limit=10)
     statuses = dict(conn.execute("SELECT url, status FROM source_item").fetchall())
@@ -77,3 +78,39 @@ def test_weekly_report_lists_incidents():
     subject, text, html_body = notify.weekly_report(conn)
     assert "1 acidente(s)" in subject and "Star Alpha" in text and "encalhe" in html_body
     assert "Advantage Spring" not in text
+
+
+def test_attack_titles_never_reach_claude(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "teste")
+    conn = db.connect(":memory:")
+    db.save_items(conn, [db.SourceItem("G", "https://g/1", "Iran says cargo ship sank after hitting a mine in Strait of Hormuz"),
+                         db.SourceItem("G", "https://g/2", "Incêndio em petroleiro atingido por míssil")])
+    fake = FakeClient(mention())
+    monkeypatch.setattr(cli.anthropic, "Anthropic", lambda: fake)
+    cli.cmd_process(conn, limit=10)
+    assert {r[0] for r in conn.execute("SELECT status FROM source_item")} == {"attack"}
+    assert fake.calls == 0
+    assert not extract.is_attack("Bulk carrier runs aground off Santos")
+
+
+def test_no_immediate_alert_for_old_accidents(monkeypatch):
+    conn = db.connect(":memory:")
+    from test_dedup import add
+    add(conn, mention(severity="very_serious", event_date="2026-01-10"), 1)
+    sent = []
+    monkeypatch.setattr(notify, "send_email", lambda s, t, h: sent.append(s) or True)
+    assert notify.send_alerts(conn) == 0 and not sent
+
+
+def test_uncertain_cause_gets_no_alert_but_is_marked(monkeypatch):
+    conn = db.connect(":memory:")
+    from test_dedup import add
+    today = datetime.now(timezone.utc).date().isoformat()
+    add(conn, mention(severity="very_serious", event_date=today, cause_uncertain=True), 1)
+    monkeypatch.setattr(notify, "send_email", lambda s, t, h: True)
+    assert notify.send_alerts(conn) == 0
+    row = conn.execute("SELECT * FROM incident").fetchone()
+    assert "pode ter sido ataque" in notify.format_incident(conn, row)[0]
+    # Uma fonte que explica a causa tira a dúvida.
+    add(conn, mention(severity="very_serious", event_date=today, cause_uncertain=False), 2)
+    assert conn.execute("SELECT cause_uncertain FROM incident").fetchone()[0] == 0

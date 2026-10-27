@@ -10,6 +10,9 @@ from difflib import SequenceMatcher
 MATCH_THRESHOLD = 0.8
 DATE_WINDOW_DAYS = 3
 MAX_DISTANCE_KM = 300
+# Sem nome de navio, a mesma ocorrência no mesmo lugar conta como o mesmo acidente.
+UNNAMED_DISTANCE_KM = 50
+UNNAMED_SCORE = 0.85
 
 SEVERITY_RANK = {"unknown": 0, "marine_incident": 1, "less_serious": 2, "serious": 3, "very_serious": 4}
 VESSEL_PREFIXES = re.compile(r"^(mv|m/v|mt|m/t|ms|m/s|sv|lng|lpg|navio)\s+", re.IGNORECASE)
@@ -56,6 +59,12 @@ def match_score(mention: dict, incident: sqlite3.Row) -> float:
                 best = max(best, SequenceMatcher(None, a, b).ratio())
     if best and mention.get("event_type") == incident["event_type"]:
         best = min(1.0, best + 0.05)
+    named = any(v.get("name") for v in mention.get("vessels", []))
+    if (not best and (not named or not incident["vessel_name"])
+            and mention.get("event_type") == incident["event_type"]
+            and None not in (mention.get("lat"), mention.get("lon"), incident["lat"], incident["lon"])
+            and distance_km(mention["lat"], mention["lon"], incident["lat"], incident["lon"]) <= UNNAMED_DISTANCE_KM):
+        return UNNAMED_SCORE
     return best
 
 
@@ -79,12 +88,14 @@ def create_incident(conn: sqlite3.Connection, mention: dict) -> int:
     vessel = _first_vessel(mention)
     cur = conn.execute(
         """INSERT INTO incident (event_date, vessel_name, imo, vessel_type, event_type, severity,
-               location, country, lat, lon, coords_approx, dead, missing, injured, pollution, summary)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               location, country, lat, lon, coords_approx, cause_uncertain, dead, missing, injured,
+               pollution, summary)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (mention.get("event_date") or None, vessel.get("name") or None, vessel.get("imo") or None,
          vessel.get("type") or None, mention["event_type"], mention["severity"],
          mention.get("location") or None, mention.get("country") or None, mention.get("lat"),
-         mention.get("lon"), bool(mention.get("coords_approximate")), mention.get("dead"), mention.get("missing"), mention.get("injured"),
+         mention.get("lon"), bool(mention.get("coords_approximate")), bool(mention.get("cause_uncertain")),
+         mention.get("dead"), mention.get("missing"), mention.get("injured"),
          mention.get("pollution"), mention.get("summary_pt")),
     )
     return cur.lastrowid
@@ -110,13 +121,14 @@ def merge_into(conn: sqlite3.Connection, incident_id: int, mention: dict) -> Non
     conn.execute(
         """UPDATE incident SET event_date = ?, vessel_name = ?, imo = ?, vessel_type = ?,
                severity = ?, location = ?, country = ?, lat = ?, lon = ?, coords_approx = ?,
-               dead = ?, missing = ?,
+               cause_uncertain = ?, dead = ?, missing = ?,
                injured = ?, pollution = ?, updated_at = datetime('now')
            WHERE id = ?""",
         (fill(row["event_date"], mention.get("event_date")), fill(row["vessel_name"], vessel.get("name")),
          fill(row["imo"], vessel.get("imo")), fill(row["vessel_type"], vessel.get("type")), severity,
          fill(row["location"], mention.get("location")), fill(row["country"], mention.get("country")),
-         lat, lon, approx,
+         # Basta uma fonte dizer a causa para a dúvida acabar.
+         lat, lon, approx, bool(row["cause_uncertain"] and mention.get("cause_uncertain")),
          highest(row["dead"], mention.get("dead")), highest(row["missing"], mention.get("missing")),
          highest(row["injured"], mention.get("injured")),
          row["pollution"] if row["pollution"] is not None else mention.get("pollution"),

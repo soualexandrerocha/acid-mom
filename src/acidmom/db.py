@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS source_item (
     published_at TEXT,
     collected_at TEXT NOT NULL DEFAULT (datetime('now')),
     content_hash TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'new'  -- new, too_old, filtered_out, not_relevant, extracted, error
+    status TEXT NOT NULL DEFAULT 'new'  -- new, too_old, filtered_out, attack, not_relevant, extracted, error
 );
 
 CREATE TABLE IF NOT EXISTS mention (
@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS incident (
     lat REAL,
     lon REAL,
     coords_approx INTEGER,  -- 1 quando as coordenadas são do lugar citado, não do texto
+    cause_uncertain INTEGER,  -- 1 quando pode ter sido ataque (zona de conflito, causa não dita)
     dead INTEGER,
     missing INTEGER,
     injured INTEGER,
@@ -75,10 +76,11 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
-    # Bancos criados antes da fase 2 não têm a coluna coords_approx.
+    # Bancos mais antigos não têm as colunas acrescentadas depois.
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(incident)")}
-    if "coords_approx" not in columns:
-        conn.execute("ALTER TABLE incident ADD COLUMN coords_approx INTEGER")
+    for column in ("coords_approx", "cause_uncertain"):
+        if column not in columns:
+            conn.execute(f"ALTER TABLE incident ADD COLUMN {column} INTEGER")
     return conn
 
 
