@@ -12,19 +12,45 @@ url = "https://splash247.com/feed/"
 nome = "The Maritime Executive"
 url = "https://maritime-executive.com/articles.rss"
 
+[[rss]]
+nome = "Marine Insight"
+url = "https://www.marineinsight.com/feed/"
+
+[[rss]]
+nome = "Hellenic Shipping News"
+url = "https://www.hellenicshippingnews.com/feed/"
+
+[[rss]]
+nome = "MarineLink"
+url = "https://www.marinelink.com/news/rss"
+
+[[rss]]
+nome = "Seatrade Maritime"
+url = "https://www.seatrade-maritime.com/rss.xml"
+
+# Buscas no Google News (mundo todo, últimas 24 horas). Substituem o GDELT.
+[[rss]]
+nome = "Google News"
+url = "https://news.google.com/rss/search?q=(%22bulk+carrier%22+OR+%22container+ship%22+OR+tanker+OR+%22cargo+ship%22+OR+freighter+OR+%22car+carrier%22)+(aground+OR+grounding+OR+collision+OR+collided+OR+fire+OR+explosion+OR+sank+OR+sinking+OR+capsized+OR+adrift+OR+%22containers+lost%22)+when:1d&hl=en-US&gl=US&ceid=US:en"
+
+[[rss]]
+nome = "Google News"
+url = "https://news.google.com/rss/search?q=(navio+OR+graneleiro+OR+petroleiro+OR+porta-cont%C3%AAineres+OR+cargueiro)+(encalha+OR+encalhou+OR+colis%C3%A3o+OR+inc%C3%AAndio+OR+naufr%C3%A1gio+OR+afunda+OR+explos%C3%A3o+OR+deriva)+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+
 # Safety4Sea fica de fora por enquanto: em 2026-10-27 o endereço do feed redirecionava
 # para a página inicial e não trazia nenhuma notícia.
 # [[rss]]
 # nome = "Safety4Sea"
 # url = "https://safety4sea.com/feed/"
 
-[gdelt]
-# Busca de notícias no mundo todo, a cada execução, nas últimas N horas.
-horas = 24
-consultas = [
-    '("cargo ship" OR "bulk carrier" OR "container ship" OR tanker OR freighter) (collision OR aground OR grounding OR fire OR explosion OR sank OR capsized OR "abandon ship")',
-    '(navio OR graneleiro OR "porta-contêineres" OR petroleiro) (colisão OR encalhe OR incêndio OR naufrágio OR explosão)',
-]
+# GDELT fica de fora: em 2026-10-27 ele recusava (erro 429) quase todo pedido vindo do
+# GitHub Actions, porque os endereços dos servidores do GitHub são compartilhados.
+# [gdelt]
+# horas = 24
+# consultas = [
+#     '("cargo ship" OR "bulk carrier" OR "container ship" OR tanker OR freighter) (collision OR aground OR grounding OR fire OR explosion OR sank OR capsized OR "abandon ship")',
+#     '(navio OR graneleiro OR "porta-contêineres" OR petroleiro) (colisão OR encalhe OR incêndio OR naufrágio OR explosão)',
+# ]
 
 [navarea]
 # Avisos náuticos ativos da NGA (EUA), cobrindo todas as áreas NAVAREA.
