@@ -3,6 +3,8 @@ name: Rastreador
 on:
   schedule:
     # Minuto 17, e não 0: na virada da hora o GitHub fica sobrecarregado e atrasa ou pula rodadas.
+    # O GitHub atrasa ou pula agendamentos; por isso cada rodada também dispara a próxima
+    # (job "proxima", no fim). O agendamento fica como reserva, caso a corrente pare.
     - cron: "17 * * * *"   # de hora em hora: coletar, processar e avisar
     - cron: "17 11 * * 1"  # segundas, 8h17 de Brasília: relatório semanal
   workflow_dispatch:
@@ -91,3 +93,34 @@ jobs:
         id: mapa
         if: hashFiles('site/index.html') != ''
         uses: actions/deploy-pages@v4
+
+  # Espera até o minuto 17 da hora seguinte e dispara a próxima rodada, a não ser que já haja
+  # outra na fila (por exemplo, uma do agendamento): assim só existe uma corrente de rodadas.
+  proxima:
+    needs: rodar
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Esperar a próxima hora
+        run: |
+          agora=$(date -u +%s)
+          alvo=$(( (agora / 3600 + 1) * 3600 + 17 * 60 ))
+          if [ $(( alvo - agora )) -gt 3600 ]; then alvo=$(( alvo - 3600 )); fi
+          echo "Próxima rodada às $(date -u -d @$alvo +%H:%M) UTC"
+          sleep $(( alvo - agora ))
+
+      - name: Disparar a próxima rodada
+        run: |
+          outras=$(gh run list --workflow rastreador.yml --limit 20 --json databaseId,status \
+            --jq "[.[] | select(.databaseId != ${{ github.run_id }} and .status != \"completed\")] | length")
+          if [ "$outras" -gt 0 ]; then
+            echo "Já há outra rodada na fila; ela continua a corrente."
+          else
+            gh workflow run rastreador.yml -f comando=rodar
+          fi
