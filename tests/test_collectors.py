@@ -1,4 +1,6 @@
 import json
+
+import httpx
 from pathlib import Path
 
 from acidmom import collectors
@@ -38,3 +40,15 @@ def test_collect_all_survives_a_broken_source(monkeypatch):
                         lambda url: collectors.parse_navarea(json.loads((FIXTURES / "navarea.json").read_text())))
     config = {"rss": [{"nome": "X", "url": "http://x"}], "navarea": {"url": "http://n"}}
     assert len(collectors.collect_all(config)) == 1
+
+
+def test_gdelt_retries_once_after_429(monkeypatch):
+    responses = [
+        httpx.Response(429, request=httpx.Request("GET", collectors.GDELT_URL)),
+        httpx.Response(200, json=json.loads((FIXTURES / "gdelt.json").read_text()),
+                       request=httpx.Request("GET", collectors.GDELT_URL)),
+    ]
+    monkeypatch.setattr(collectors, "GDELT_MIN_INTERVAL", 0)
+    monkeypatch.setattr(httpx.Client, "get", lambda self, url, params=None: responses.pop(0))
+    assert len(collectors.fetch_gdelt("x", 24)) == 1
+    assert not responses

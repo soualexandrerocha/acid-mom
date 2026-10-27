@@ -6,6 +6,7 @@ e uma função `fetch_*` que só baixa o conteúdo e chama o parse.
 
 import logging
 import re
+import time
 from datetime import datetime, timezone
 
 import feedparser
@@ -59,6 +60,9 @@ def fetch_rss(name: str, url: str) -> list[SourceItem]:
 # --- GDELT -----------------------------------------------------------------
 
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+# O GDELT bloqueia (HTTP 429) quem faz pedidos com menos de alguns segundos de intervalo.
+GDELT_MIN_INTERVAL = 10
+_last_gdelt_request = 0.0
 
 
 def parse_gdelt(data: dict) -> list[SourceItem]:
@@ -85,8 +89,15 @@ def fetch_gdelt(query: str, hours: int) -> list[SourceItem]:
         "timespan": f"{hours}h",
         "sort": "datedesc",
     }
+    global _last_gdelt_request
     with _client() as client:
-        resp = client.get(GDELT_URL, params=params)
+        for attempt in range(2):
+            time.sleep(max(0.0, _last_gdelt_request + GDELT_MIN_INTERVAL - time.monotonic()))
+            resp = client.get(GDELT_URL, params=params)
+            _last_gdelt_request = time.monotonic()
+            if resp.status_code != 429 or attempt:
+                break
+            log.info("GDELT pediu para esperar; tentando de novo")
         resp.raise_for_status()
     # O GDELT responde texto puro (não JSON) quando a consulta é inválida.
     if not resp.headers.get("content-type", "").startswith("application/json"):

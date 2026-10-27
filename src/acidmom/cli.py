@@ -11,12 +11,22 @@ import argparse
 import logging
 import os
 import tomllib
+from datetime import datetime, timedelta, timezone
 
 import anthropic
 
 from . import collectors, db, dedup, extract, notify
 
 log = logging.getLogger("acidmom")
+
+# Itens publicados há mais tempo que isso não são acidentes novos (ex.: avisos náuticos antigos ainda ativos).
+MAX_AGE = timedelta(days=30)
+
+
+def is_too_old(published_at: str | None) -> bool:
+    if not published_at:
+        return False
+    return datetime.fromisoformat(published_at) < datetime.now(timezone.utc) - MAX_AGE
 
 
 def cmd_collect(conn, config) -> None:
@@ -32,9 +42,11 @@ def cmd_process(conn, limit: int) -> None:
         "SELECT * FROM source_item WHERE status = 'new' ORDER BY id LIMIT ?", (limit,)
     ).fetchall()
     client = None
-    counts = {"filtered_out": 0, "not_relevant": 0, "extracted": 0, "error": 0, "new_incidents": 0}
+    counts = {"too_old": 0, "filtered_out": 0, "not_relevant": 0, "extracted": 0, "error": 0, "new_incidents": 0}
     for row in rows:
-        if not extract.passes_keyword_filter(row["title"], row["body"]):
+        if is_too_old(row["published_at"]):
+            status = "too_old"
+        elif not extract.passes_keyword_filter(row["title"], row["body"]):
             status = "filtered_out"
         else:
             client = client or anthropic.Anthropic()

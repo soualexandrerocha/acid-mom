@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS source_item (
     published_at TEXT,
     collected_at TEXT NOT NULL DEFAULT (datetime('now')),
     content_hash TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'new'  -- new, filtered_out, not_relevant, extracted, error
+    status TEXT NOT NULL DEFAULT 'new'  -- new, too_old, filtered_out, not_relevant, extracted, error
 );
 
 CREATE TABLE IF NOT EXISTS mention (

@@ -1,5 +1,4 @@
 # Fontes coletadas pela ferramenta. Para adicionar um site, copie um bloco [[rss]].
-# Os endereços abaixo ainda precisam ser confirmados na primeira execução real.
 
 [[rss]]
 nome = "gCaptain"
@@ -13,9 +12,11 @@ url = "https://splash247.com/feed/"
 nome = "The Maritime Executive"
 url = "https://maritime-executive.com/articles.rss"
 
-[[rss]]
-nome = "Safety4Sea"
-url = "https://safety4sea.com/feed/"
+# Safety4Sea fica de fora por enquanto: em 2026-10-27 o endereço do feed redirecionava
+# para a página inicial e não trazia nenhuma notícia.
+# [[rss]]
+# nome = "Safety4Sea"
+# url = "https://safety4sea.com/feed/"
 
 [gdelt]
 # Busca de notícias no mundo todo, a cada execução, nas últimas N horas.

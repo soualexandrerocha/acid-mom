@@ -27,6 +27,7 @@ EVENT_PT = {
     "hull_failure": "falha estrutural",
     "cargo_loss": "perda de carga",
     "occupational_fatality": "acidente de trabalho fatal",
+    "attack": "ataque",
     "other": "outro",
 }
 ALERT_SEVERITIES = ("very_serious",)
@@ -110,7 +111,8 @@ def send_alerts(conn: sqlite3.Connection) -> int:
 
 def weekly_report(conn: sqlite3.Connection, days: int = 7) -> tuple[str, str, str]:
     rows = conn.execute(
-        "SELECT * FROM incident WHERE created_at >= datetime('now', ?) ORDER BY "
+        "SELECT * FROM incident WHERE created_at >= datetime('now', ?) "
+        "AND (event_date IS NULL OR event_date >= date('now', '-30 days')) ORDER BY "
         "CASE severity WHEN 'very_serious' THEN 0 WHEN 'serious' THEN 1 WHEN 'less_serious' THEN 2 "
         "WHEN 'marine_incident' THEN 3 ELSE 4 END, event_date DESC",
         (f"-{days} days",),
