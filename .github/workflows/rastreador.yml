@@ -17,12 +17,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Testar GDELT
+      - name: Testar fontes
         run: |
-          q() { echo "== $1"; curl -sS -m 40 -G 'https://api.gdeltproject.org/api/v2/doc/doc' --data-urlencode "query=$1" -d mode=artlist -d format=json -d maxrecords=50 -d "timespan=$2" -o out.txt -w 'HTTP %{http_code} %{content_type} %{size_download}B\n'; head -c 300 out.txt; echo; python3 -c "import json;d=json.load(open('out.txt'));print('artigos:',len(d.get('articles',[])))" 2>/dev/null || echo "(não é JSON)"; sleep 12; }
-          q 'tanker' 24h
-          q '"bulk carrier"' 3d
-          q '("cargo ship" OR "bulk carrier" OR "container ship" OR tanker OR freighter) (collision OR aground OR grounding OR fire OR explosion OR sank OR capsized OR "abandon ship")' 24h
-          q '("cargo ship" OR "bulk carrier" OR "container ship" OR tanker OR freighter) (collision OR aground OR grounding OR fire OR explosion OR sank OR capsized OR "abandon ship")' 3d
-          q '(navio OR graneleiro OR petroleiro) (colisão OR encalhe OR incêndio OR naufrágio)' 3d
-          q 'ship aground sourcelang:english' 3d
+          f() { echo "== $1"; curl -sSL -m 30 -A 'Mozilla/5.0 acid-mom' "$1" -o out.txt -w 'HTTP %{http_code} %{content_type} %{size_download}B\n'; python3 -c "
+import re;t=open('out.txt',errors='ignore').read();it=re.findall(r'<item>.*?<title>(.*?)</title>.*?(?:<pubDate>(.*?)</pubDate>)?',t,re.S);print('itens:',len(it));[print('  ',x[0][:110],'|',x[1]) for x in it[:4]]"; }
+          f 'https://news.google.com/rss/search?q=(%22bulk+carrier%22+OR+%22container+ship%22+OR+tanker+OR+%22cargo+ship%22)+(aground+OR+collision+OR+fire+OR+sank+OR+capsized)+when:1d&hl=en-US&gl=US&ceid=US:en'
+          f 'https://news.google.com/rss/search?q=(navio+OR+graneleiro+OR+petroleiro+OR+porta-cont%C3%AAineres)+(encalha+OR+colis%C3%A3o+OR+inc%C3%AAndio+OR+naufr%C3%A1gio)+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419'
+          f 'https://www.marineinsight.com/feed/'
+          f 'https://www.hellenicshippingnews.com/feed/'
+          f 'https://www.marinelink.com/news/rss'
+          f 'https://www.seatrade-maritime.com/rss.xml'
+          f 'https://safety4sea.com/feed/'
+          f 'https://www.portosenavios.com.br/feed'
+          f 'https://portalportuario.cl/feed/'
+          f 'https://www.offshore-energy.biz/feed/'
+          f 'https://www.vesselfinder.com/news/rss'
