@@ -3,8 +3,9 @@
     acidmom coletar     baixa itens novos de todas as fontes
     acidmom processar   filtra, extrai com o Claude e junta em acidentes
     acidmom avisar      envia e-mail para cada acidente muito grave ainda não avisado
-    acidmom rodar       coletar + processar + avisar (o que o agendador chama)
+    acidmom rodar       coletar + processar + avisar + mapa (o que o agendador chama)
     acidmom semanal     envia o relatório dos últimos 7 dias
+    acidmom mapa        gera a página do mapa (site/index.html)
 """
 
 import argparse
@@ -15,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import anthropic
 
-from . import collectors, db, dedup, extract, notify
+from . import collectors, db, dedup, extract, notify, site
 
 log = logging.getLogger("acidmom")
 
@@ -81,9 +82,10 @@ def cmd_weekly(conn) -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="acidmom", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("comando", choices=["coletar", "processar", "avisar", "rodar", "semanal"])
+    parser.add_argument("comando", choices=["coletar", "processar", "avisar", "rodar", "semanal", "mapa"])
     parser.add_argument("--banco", default="data/acidmom.sqlite", help="arquivo do banco SQLite")
     parser.add_argument("--fontes", default="fontes.toml", help="arquivo de configuração das fontes")
+    parser.add_argument("--site", default="site", help="pasta onde a página do mapa é gerada")
     parser.add_argument("--limite", type=int, default=300, help="máximo de itens processados por vez")
     args = parser.parse_args(argv)
 
@@ -98,6 +100,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_alert(conn)
     if args.comando == "semanal":
         cmd_weekly(conn)
+    if args.comando in ("mapa", "rodar"):
+        log.info("Mapa gerado em %s", site.build_page(conn, args.site))
 
 
 if __name__ == "__main__":

@@ -57,3 +57,15 @@ Sem as variáveis de e-mail configuradas, os e-mails aparecem só no log, sem en
 | `src/acidmom/notify.py` | Aviso imediato e relatório semanal |
 | `src/acidmom/db.py` | Banco de dados |
 | `.github/workflows/rastreador.yml` | Agendamento |
+
+## Mapa
+
+A cada rodada, `acidmom rodar` gera `site/index.html` com os acidentes dos últimos 90 dias e o
+GitHub Actions publica a página no GitHub Pages: https://soualexandrerocha.github.io/acid-mom/
+
+Para gerar só a página, localmente: `acidmom mapa` (abre `site/index.html` no navegador).
+Círculos tracejados marcam posições aproximadas: a notícia citou um lugar (porto, estreito, ilha),
+mas não deu coordenadas.
+
+Para funcionar, o repositório precisa ser público e, em Settings → Pages → Build and deployment,
+a opção Source precisa estar em "GitHub Actions".

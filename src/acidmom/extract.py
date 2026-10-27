@@ -68,6 +68,7 @@ SCHEMA = {
         "country": {"type": "string"},
         "lat": _nullable("number"),
         "lon": _nullable("number"),
+        "coords_approximate": {"type": "boolean"},
         "dead": _nullable("integer"),
         "missing": _nullable("integer"),
         "injured": _nullable("integer"),
@@ -77,7 +78,7 @@ SCHEMA = {
     },
     "required": [
         "is_relevant", "reason", "vessels", "event_date", "event_type", "severity", "location",
-        "country", "lat", "lon", "dead", "missing", "injured", "pollution", "summary_pt", "evidence",
+        "country", "lat", "lon", "coords_approximate", "dead", "missing", "injured", "pollution", "summary_pt", "evidence",
     ],
     "additionalProperties": False,
 }
@@ -107,8 +108,11 @@ needs towage or shore assistance.
 Rules:
 - Use only what the text says. Never guess an IMO number; leave it empty if absent.
 - event_date is YYYY-MM-DD when the text gives or clearly implies it, otherwise empty.
-- lat/lon only when the text gives coordinates (navigational warnings often do); convert to \
-decimal degrees, south and west negative.
+- lat/lon in decimal degrees, south and west negative. If the text gives coordinates (navigational \
+warnings often do), use them and set coords_approximate false. Otherwise, if it names a specific \
+place (a port, strait, cape, island, city or small sea area), give that place's approximate \
+coordinates and set coords_approximate true. If it names only a country or an ocean, or nothing, \
+use null and set coords_approximate true.
 - dead/missing/injured: numbers stated in the text, else null.
 - summary_pt: one or two sentences in Brazilian Portuguese.
 - evidence: the short quote from the text that best supports is_relevant."""
