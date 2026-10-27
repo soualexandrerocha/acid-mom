@@ -33,7 +33,7 @@ def passes_keyword_filter(title: str, body: str) -> bool:
 
 EVENT_TYPES = [
     "collision", "contact", "grounding", "fire_explosion", "flooding_foundering",
-    "capsizing", "loss_of_control", "hull_failure", "cargo_loss", "occupational_fatality", "attack", "other",
+    "capsizing", "loss_of_control", "hull_failure", "cargo_loss", "occupational_fatality", "other",
 ]
 SEVERITIES = ["very_serious", "serious", "less_serious", "marine_incident", "unknown"]
 
@@ -89,13 +89,11 @@ country).
 
 is_relevant = true only if the item reports a specific accident or incident that happened to at \
 least one such cargo ship. It is false for: fishing, passenger, leisure, naval or offshore-only \
-vessels; inland waterway barges and pushboats on rivers and lakes; piracy, boardings or attack \
-attempts that caused no damage or casualties; general market news, opinion, court cases or reports about old accidents with \
+vessels; inland waterway barges and pushboats on rivers and lakes; attacks of any kind (missiles, \
+drones, mines, projectiles, piracy, armed boardings), even when they cause damage, fire or \
+casualties; general market news, opinion, court cases or reports about old accidents with \
 nothing new; exercises and routine navigational warnings. When false, fill the other fields with \
 empty strings, "other", "unknown" or null.
-
-An attack (missile, drone, mine, projectile, armed boarding) that damaged a cargo ship or hurt \
-its crew IS relevant: use event_type "attack", even if a fire or explosion followed.
 
 Severity follows the IMO Casualty Investigation Code:
 - very_serious: total loss of the ship, loss of life, or severe pollution.
