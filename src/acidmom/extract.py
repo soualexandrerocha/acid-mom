@@ -89,8 +89,9 @@ country).
 
 is_relevant = true only if the item reports a specific accident or incident that happened to at \
 least one such cargo ship. It is false for: fishing, passenger, leisure, naval or offshore-only \
-vessels; inland waterway barges and pushboats on rivers and lakes; piracy or military attacks \
-with no accident; general market news, opinion, court cases or reports about old accidents with \
+vessels; inland waterway barges and pushboats on rivers and lakes; attacks of any kind (missiles, \
+drones, mines, projectiles, piracy, armed boardings), even when they cause damage, fire or \
+casualties; general market news, opinion, court cases or reports about old accidents with \
 nothing new; exercises and routine navigational warnings. When false, fill the other fields with \
 empty strings, "other", "unknown" or null.
 

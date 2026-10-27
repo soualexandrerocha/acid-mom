@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from acidmom import cli, db, extract, notify
@@ -16,6 +17,12 @@ class FakeClient:
         assert kwargs["output_config"]["format"]["schema"] is extract.SCHEMA
         return SimpleNamespace(stop_reason="end_turn",
                                content=[SimpleNamespace(type="text", text=json.dumps(self.answer))])
+
+
+def test_too_old_items():
+    assert cli.is_too_old("2022-03-13T00:00:00+00:00")
+    assert not cli.is_too_old(None)
+    assert not cli.is_too_old(datetime.now(timezone.utc).isoformat())
 
 
 def test_keyword_filter():
@@ -65,6 +72,8 @@ def test_irrelevant_items_create_nothing(monkeypatch):
 def test_weekly_report_lists_incidents():
     conn = db.connect(":memory:")
     from test_dedup import add
-    add(conn, mention(), 1)
+    add(conn, mention(event_date=datetime.now(timezone.utc).date().isoformat()), 1)
+    add(conn, mention(event_date="2022-03-13", vessels=[{"name": "Advantage Spring", "imo": "", "type": "", "flag": ""}]), 2)
     subject, text, html_body = notify.weekly_report(conn)
     assert "1 acidente(s)" in subject and "Star Alpha" in text and "encalhe" in html_body
+    assert "Advantage Spring" not in text
