@@ -84,6 +84,7 @@ SCHEMA = {
         "lat": _nullable("number"),
         "lon": _nullable("number"),
         "coords_approximate": {"type": "boolean"},
+        "cause_uncertain": {"type": "boolean"},
         "dead": _nullable("integer"),
         "missing": _nullable("integer"),
         "injured": _nullable("integer"),
@@ -93,7 +94,7 @@ SCHEMA = {
     },
     "required": [
         "is_relevant", "reason", "vessels", "event_date", "event_type", "severity", "location",
-        "country", "lat", "lon", "coords_approximate", "dead", "missing", "injured", "pollution", "summary_pt", "evidence",
+        "country", "lat", "lon", "coords_approximate", "cause_uncertain", "dead", "missing", "injured", "pollution", "summary_pt", "evidence",
     ],
     "additionalProperties": False,
 }
@@ -128,6 +129,10 @@ warnings often do), use them and set coords_approximate false. Otherwise, if it 
 place (a port, strait, cape, island, city or small sea area), give that place's approximate \
 coordinates and set coords_approximate true. If it names only a country or an ocean, or nothing, \
 use null and set coords_approximate true.
+- cause_uncertain: true when the ship had a fire, explosion, sinking or hull damage in an area of \
+armed conflict (Persian Gulf, Strait of Hormuz, Gulf of Oman, Red Sea, Gulf of Aden, Black Sea) \
+and the text does not state a non-hostile cause (such as an engine room fire, a collision or bad \
+weather). Otherwise false.
 - dead/missing/injured: numbers stated in the text, else null.
 - summary_pt: one or two sentences in Brazilian Portuguese.
 - evidence: the short quote from the text that best supports is_relevant."""

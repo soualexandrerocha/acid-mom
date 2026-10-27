@@ -39,6 +39,7 @@ def incidents_for_map(conn: sqlite3.Connection, days: int = DAYS) -> list[dict]:
             "lat": row["lat"],
             "lon": row["lon"],
             "approx": bool(row["coords_approx"]),
+            "uncertain": bool(row["cause_uncertain"]),
             "sources": [{"name": s["source"], "url": s["url"]} for s in _sources(conn, row["id"])],
         }
         for row in rows
@@ -86,6 +87,7 @@ PAGE = """<!doctype html>
 <script>
 const incidents = __DATA__;
 const colors = __COLORS__;
+const UNCERTAIN = "Causa incerta: zona de conflito, pode ter sido ataque";
 const map = L.map("map", { worldCopyJump: true }).setView([20, 0], 2);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 12,
@@ -97,7 +99,8 @@ const describe = (i) =>
   `<b>${esc(i.title)}</b>: ${esc(i.event)}<br>` +
   `<span>${esc(i.severity_pt)} · ${esc(i.date)}</span><br>` +
   `<span>${esc(i.place)}${i.approx ? " (posição aproximada)" : ""}</span>` +
-  (i.victims ? `<br><span>${esc(i.victims)}</span>` : "");
+  (i.victims ? `<br><span>${esc(i.victims)}</span>` : "") +
+  (i.uncertain ? `<br><span>${UNCERTAIN}</span>` : "");
 
 const list = document.getElementById("list");
 incidents.forEach((i) => {
@@ -108,6 +111,7 @@ incidents.forEach((i) => {
     `<div class="meta"><span class="dot" style="background:${colors[i.severity]}"></span>` +
     `${esc(i.severity_pt)} · ${esc(i.date)} · ${esc(i.place)}${i.vessel_type ? " · " + esc(i.vessel_type) : ""}</div>` +
     (i.victims ? `<div class="meta">${esc(i.victims)}</div>` : "") +
+    (i.uncertain ? `<div class="meta">${UNCERTAIN}</div>` : "") +
     `<p>${esc(i.summary)}</p>` +
     `<div class="meta">Fontes: ${i.sources.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>`).join(", ")}</div>`;
   list.appendChild(card);

@@ -5,7 +5,7 @@ def mention(**over):
     base = {
         "is_relevant": True, "reason": "", "vessels": [{"name": "MV Star Alpha", "imo": "", "type": "bulk carrier", "flag": ""}],
         "event_date": "2026-10-25", "event_type": "grounding", "severity": "serious", "location": "near Santos",
-        "country": "Brazil", "lat": None, "lon": None, "coords_approximate": False, "dead": None, "missing": None, "injured": None,
+        "country": "Brazil", "lat": None, "lon": None, "coords_approximate": False, "cause_uncertain": False, "dead": None, "missing": None, "injured": None,
         "pollution": None, "summary_pt": "Graneleiro encalhou perto de Santos.", "evidence": "",
     }
     return base | over

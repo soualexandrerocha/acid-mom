@@ -61,6 +61,8 @@ def format_incident(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[str, st
         ("IMO", row["imo"] or "não informado"),
         ("Vítimas", _victims(row) or "nenhuma informada"),
     ]
+    if row["cause_uncertain"]:
+        details.append(("Causa", "incerta: zona de conflito, pode ter sido ataque"))
     sources = _sources(conn, row["id"])
     text = "\n".join([title, row["summary"] or "", *(f"{k}: {v}" for k, v in details), "Fontes:",
                       *(f"- {s['source']}: {s['url']}" for s in sources)])
@@ -99,6 +101,7 @@ def send_alerts(conn: sqlite3.Connection) -> int:
     rows = conn.execute(
         f"SELECT * FROM incident WHERE alert_sent_at IS NULL AND severity IN "
         f"({','.join('?' * len(ALERT_SEVERITIES))}) "
+        f"AND NOT COALESCE(cause_uncertain, 0) "
         f"AND COALESCE(event_date, date(created_at)) >= date('now', ?) ORDER BY created_at",
         (*ALERT_SEVERITIES, f"-{ALERT_MAX_AGE_DAYS} days"),
     ).fetchall()

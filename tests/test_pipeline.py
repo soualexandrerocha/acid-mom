@@ -100,3 +100,17 @@ def test_no_immediate_alert_for_old_accidents(monkeypatch):
     sent = []
     monkeypatch.setattr(notify, "send_email", lambda s, t, h: sent.append(s) or True)
     assert notify.send_alerts(conn) == 0 and not sent
+
+
+def test_uncertain_cause_gets_no_alert_but_is_marked(monkeypatch):
+    conn = db.connect(":memory:")
+    from test_dedup import add
+    today = datetime.now(timezone.utc).date().isoformat()
+    add(conn, mention(severity="very_serious", event_date=today, cause_uncertain=True), 1)
+    monkeypatch.setattr(notify, "send_email", lambda s, t, h: True)
+    assert notify.send_alerts(conn) == 0
+    row = conn.execute("SELECT * FROM incident").fetchone()
+    assert "pode ter sido ataque" in notify.format_incident(conn, row)[0]
+    # Uma fonte que explica a causa tira a dúvida.
+    add(conn, mention(severity="very_serious", event_date=today, cause_uncertain=False), 2)
+    assert conn.execute("SELECT cause_uncertain FROM incident").fetchone()[0] == 0
