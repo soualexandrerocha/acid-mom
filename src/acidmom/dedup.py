@@ -40,7 +40,9 @@ def match_score(mention: dict, incident: sqlite3.Row) -> float:
     m_date, i_date = _parse_date(mention.get("event_date")), _parse_date(incident["event_date"])
     if m_date and i_date and abs((m_date - i_date).days) > DATE_WINDOW_DAYS:
         return 0.0
+    # Só compara distância entre coordenadas exatas: as aproximadas podem estar longe do ponto real.
     if (None not in (mention.get("lat"), mention.get("lon"), incident["lat"], incident["lon"])
+            and not mention.get("coords_approximate") and not incident["coords_approx"]
             and distance_km(mention["lat"], mention["lon"], incident["lat"], incident["lon"]) > MAX_DISTANCE_KM):
         return 0.0
 
@@ -77,12 +79,12 @@ def create_incident(conn: sqlite3.Connection, mention: dict) -> int:
     vessel = _first_vessel(mention)
     cur = conn.execute(
         """INSERT INTO incident (event_date, vessel_name, imo, vessel_type, event_type, severity,
-               location, country, lat, lon, dead, missing, injured, pollution, summary)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               location, country, lat, lon, coords_approx, dead, missing, injured, pollution, summary)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (mention.get("event_date") or None, vessel.get("name") or None, vessel.get("imo") or None,
          vessel.get("type") or None, mention["event_type"], mention["severity"],
          mention.get("location") or None, mention.get("country") or None, mention.get("lat"),
-         mention.get("lon"), mention.get("dead"), mention.get("missing"), mention.get("injured"),
+         mention.get("lon"), bool(mention.get("coords_approximate")), mention.get("dead"), mention.get("missing"), mention.get("injured"),
          mention.get("pollution"), mention.get("summary_pt")),
     )
     return cur.lastrowid
@@ -101,16 +103,20 @@ def merge_into(conn: sqlite3.Connection, incident_id: int, mention: dict) -> Non
         return max(values) if values else None
 
     severity = max(row["severity"], mention["severity"], key=lambda s: SEVERITY_RANK.get(s, 0))
+    # Coordenadas exatas substituem as aproximadas; entre duas aproximadas, fica a primeira.
+    lat, lon, approx = row["lat"], row["lon"], row["coords_approx"]
+    if mention.get("lat") is not None and (lat is None or (approx and not mention.get("coords_approximate"))):
+        lat, lon, approx = mention["lat"], mention["lon"], bool(mention.get("coords_approximate"))
     conn.execute(
         """UPDATE incident SET event_date = ?, vessel_name = ?, imo = ?, vessel_type = ?,
-               severity = ?, location = ?, country = ?, lat = ?, lon = ?, dead = ?, missing = ?,
+               severity = ?, location = ?, country = ?, lat = ?, lon = ?, coords_approx = ?,
+               dead = ?, missing = ?,
                injured = ?, pollution = ?, updated_at = datetime('now')
            WHERE id = ?""",
         (fill(row["event_date"], mention.get("event_date")), fill(row["vessel_name"], vessel.get("name")),
          fill(row["imo"], vessel.get("imo")), fill(row["vessel_type"], vessel.get("type")), severity,
          fill(row["location"], mention.get("location")), fill(row["country"], mention.get("country")),
-         row["lat"] if row["lat"] is not None else mention.get("lat"),
-         row["lon"] if row["lon"] is not None else mention.get("lon"),
+         lat, lon, approx,
          highest(row["dead"], mention.get("dead")), highest(row["missing"], mention.get("missing")),
          highest(row["injured"], mention.get("injured")),
          row["pollution"] if row["pollution"] is not None else mention.get("pollution"),

@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS incident (
     country TEXT,
     lat REAL,
     lon REAL,
+    coords_approx INTEGER,  -- 1 quando as coordenadas são do lugar citado, não do texto
     dead INTEGER,
     missing INTEGER,
     injured INTEGER,
@@ -74,6 +75,10 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # Bancos criados antes da fase 2 não têm a coluna coords_approx.
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(incident)")}
+    if "coords_approx" not in columns:
+        conn.execute("ALTER TABLE incident ADD COLUMN coords_approx INTEGER")
     return conn
 
 

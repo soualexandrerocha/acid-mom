@@ -5,7 +5,7 @@ def mention(**over):
     base = {
         "is_relevant": True, "reason": "", "vessels": [{"name": "MV Star Alpha", "imo": "", "type": "bulk carrier", "flag": ""}],
         "event_date": "2026-10-25", "event_type": "grounding", "severity": "serious", "location": "near Santos",
-        "country": "Brazil", "lat": None, "lon": None, "dead": None, "missing": None, "injured": None,
+        "country": "Brazil", "lat": None, "lon": None, "coords_approximate": False, "dead": None, "missing": None, "injured": None,
         "pollution": None, "summary_pt": "Graneleiro encalhou perto de Santos.", "evidence": "",
     }
     return base | over
@@ -46,3 +46,23 @@ def test_far_apart_positions_do_not_match():
     add(conn, mention(lat=-24.0, lon=-46.3), 1)
     _, is_new = add(conn, mention(lat=40.0, lon=-70.0), 2)
     assert is_new
+
+
+def test_approximate_position_does_not_block_match_and_exact_replaces_it():
+    conn = db.connect(":memory:")
+    first, _ = add(conn, mention(lat=-23.9, lon=-46.3, coords_approximate=True), 1)
+    second, is_new = add(conn, mention(lat=-20.0, lon=-40.0), 2)
+    assert first == second and not is_new
+    row = conn.execute("SELECT lat, lon, coords_approx FROM incident").fetchone()
+    assert (row["lat"], row["lon"], row["coords_approx"]) == (-20.0, -40.0, 0)
+
+
+def test_old_database_gets_coords_approx_column(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.sqlite"
+    old = sqlite3.connect(path)
+    old.execute("CREATE TABLE incident (id INTEGER PRIMARY KEY, lat REAL)")
+    old.commit()
+    old.close()
+    conn = db.connect(str(path))
+    assert "coords_approx" in {r["name"] for r in conn.execute("PRAGMA table_info(incident)")}
