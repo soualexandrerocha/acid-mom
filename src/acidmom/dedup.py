@@ -10,6 +10,9 @@ from difflib import SequenceMatcher
 MATCH_THRESHOLD = 0.8
 DATE_WINDOW_DAYS = 3
 MAX_DISTANCE_KM = 300
+# Sem nome de navio, a mesma ocorrência no mesmo lugar conta como o mesmo acidente.
+UNNAMED_DISTANCE_KM = 50
+UNNAMED_SCORE = 0.85
 
 SEVERITY_RANK = {"unknown": 0, "marine_incident": 1, "less_serious": 2, "serious": 3, "very_serious": 4}
 VESSEL_PREFIXES = re.compile(r"^(mv|m/v|mt|m/t|ms|m/s|sv|lng|lpg|navio)\s+", re.IGNORECASE)
@@ -56,6 +59,12 @@ def match_score(mention: dict, incident: sqlite3.Row) -> float:
                 best = max(best, SequenceMatcher(None, a, b).ratio())
     if best and mention.get("event_type") == incident["event_type"]:
         best = min(1.0, best + 0.05)
+    named = any(v.get("name") for v in mention.get("vessels", []))
+    if (not best and (not named or not incident["vessel_name"])
+            and mention.get("event_type") == incident["event_type"]
+            and None not in (mention.get("lat"), mention.get("lon"), incident["lat"], incident["lon"])
+            and distance_km(mention["lat"], mention["lon"], incident["lat"], incident["lon"]) <= UNNAMED_DISTANCE_KM):
+        return UNNAMED_SCORE
     return best
 
 

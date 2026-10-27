@@ -66,3 +66,16 @@ def test_old_database_gets_coords_approx_column(tmp_path):
     old.close()
     conn = db.connect(str(path))
     assert "coords_approx" in {r["name"] for r in conn.execute("PRAGMA table_info(incident)")}
+
+
+def test_unnamed_ships_same_event_same_place_are_merged():
+    conn = db.connect(":memory:")
+    unnamed = [{"name": "", "imo": "", "type": "tanker", "flag": ""}]
+    first, _ = add(conn, mention(vessels=unnamed, event_type="fire_explosion", lat=43.6, lon=39.7, coords_approximate=True), 1)
+    named, is_new = add(conn, mention(vessels=[{"name": "Rio", "imo": "", "type": "tanker", "flag": ""}],
+                                      event_type="fire_explosion", lat=43.58, lon=39.72, coords_approximate=True), 2)
+    assert first == named and not is_new
+    assert conn.execute("SELECT vessel_name FROM incident").fetchone()[0] == "Rio"
+    _, other_event = add(conn, mention(vessels=unnamed, event_type="grounding", lat=43.6, lon=39.7), 3)
+    _, far = add(conn, mention(vessels=unnamed, event_type="fire_explosion", lat=26.6, lon=56.3), 4)
+    assert other_event and far

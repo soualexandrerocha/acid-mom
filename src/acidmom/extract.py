@@ -31,6 +31,21 @@ def passes_keyword_filter(title: str, body: str) -> bool:
     return bool(ACCIDENT_TERMS.search(f"{title}\n{body}"))
 
 
+# Ataques ficam fora do escopo. Muitas notícias (as do Google News) chegam só com o título,
+# e sem o texto o Claude não percebe que "bateu numa mina" é um ataque; por isso o título
+# é barrado antes. Só o título: o texto de uma matéria longa pode citar essas palavras de passagem.
+ATTACK_TERMS = re.compile(
+    r"\bmines?\b|\bmined\b|missile|\bdrones?\b|torpedo|projectile|houthi|\battack|\bstrikes? on\b|"
+    r"pirat|hijack|\bseiz|\bboarded by\b|"
+    r"\bminas?\b|m[ií]ssil|ataque|atacad|pirata|sequestr|apreendid|houthis?",
+    re.IGNORECASE,
+)
+
+
+def is_attack(title: str) -> bool:
+    return bool(ATTACK_TERMS.search(title))
+
+
 EVENT_TYPES = [
     "collision", "contact", "grounding", "fire_explosion", "flooding_foundering",
     "capsizing", "loss_of_control", "hull_failure", "cargo_loss", "occupational_fatality", "other",
