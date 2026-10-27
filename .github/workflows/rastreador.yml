@@ -1,9 +1,6 @@
 name: Rastreador
 
 on:
-  schedule:
-    - cron: "0 * * * *"   # de hora em hora: coletar, processar e avisar
-    - cron: "0 11 * * 1"  # segundas, 8h de Brasília: relatório semanal
   workflow_dispatch:
     inputs:
       comando:
@@ -13,80 +10,19 @@ on:
         default: rodar
 
 permissions:
-  contents: write
-  pages: write     # publicar o mapa no GitHub Pages
-  id-token: write
-
-concurrency:
-  group: rastreador
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  rodar:
+  diagnostico:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.mapa.outputs.page_url }}
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - run: pip install .
-
-      # O banco SQLite fica guardado no branch "dados", separado do código.
-      - name: Baixar o banco
+      - name: Testar GDELT
         run: |
-          mkdir -p data
-          if git fetch --depth=1 origin dados; then
-            git show origin/dados:acidmom.sqlite > data/acidmom.sqlite
-          fi
-
-      - name: Rodar
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          ACIDMOM_MODEL: ${{ vars.ACIDMOM_MODEL }}
-        run: |
-          if [ "${{ github.event.schedule }}" = "0 11 * * 1" ]; then
-            acidmom semanal
-          else
-            acidmom "${{ inputs.comando || 'rodar' }}"
-          fi
-
-      - name: Guardar o banco
-        run: |
-          git config user.name "acid-mom bot"
-          git config user.email "acid-mom@users.noreply.github.com"
-          cp data/acidmom.sqlite /tmp/acidmom.sqlite
-          if git rev-parse --verify -q origin/dados; then
-            git worktree add /tmp/dados origin/dados
-          else
-            git worktree add --detach /tmp/dados
-            git -C /tmp/dados checkout --orphan dados-novo
-            git -C /tmp/dados rm -rfq --ignore-unmatch .
-          fi
-          cp /tmp/acidmom.sqlite /tmp/dados/acidmom.sqlite
-          cd /tmp/dados
-          git add acidmom.sqlite
-          git commit -qm "Banco atualizado em $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
-          git push origin HEAD:dados
-
-      # O mapa (site/index.html) é publicado no GitHub Pages a cada rodada.
-      - name: Preparar o mapa
-        if: hashFiles('site/index.html') != ''
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-      - name: Publicar o mapa
-        id: mapa
-        if: hashFiles('site/index.html') != ''
-        uses: actions/deploy-pages@v4
+          q() { echo "== $1"; curl -sS -m 40 -G 'https://api.gdeltproject.org/api/v2/doc/doc' --data-urlencode "query=$1" -d mode=artlist -d format=json -d maxrecords=50 -d "timespan=$2" -o out.txt -w 'HTTP %{http_code} %{content_type} %{size_download}B\n'; head -c 300 out.txt; echo; python3 -c "import json;d=json.load(open('out.txt'));print('artigos:',len(d.get('articles',[])))" 2>/dev/null || echo "(não é JSON)"; sleep 12; }
+          q 'tanker' 24h
+          q '"bulk carrier"' 3d
+          q '("cargo ship" OR "bulk carrier" OR "container ship" OR tanker OR freighter) (collision OR aground OR grounding OR fire OR explosion OR sank OR capsized OR "abandon ship")' 24h
+          q '("cargo ship" OR "bulk carrier" OR "container ship" OR tanker OR freighter) (collision OR aground OR grounding OR fire OR explosion OR sank OR capsized OR "abandon ship")' 3d
+          q '(navio OR graneleiro OR petroleiro) (colisão OR encalhe OR incêndio OR naufrágio)' 3d
+          q 'ship aground sourcelang:english' 3d
