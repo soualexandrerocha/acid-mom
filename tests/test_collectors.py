@@ -52,3 +52,9 @@ def test_gdelt_retries_once_after_429(monkeypatch):
     monkeypatch.setattr(httpx.Client, "get", lambda self, url, params=None: responses.pop(0))
     assert len(collectors.fetch_gdelt("x", 24)) == 1
     assert not responses
+
+
+def test_parse_rss_keeps_publisher_of_google_news_items():
+    items = collectors.parse_rss("Google News", (FIXTURES / "googlenews.xml").read_bytes())
+    assert items[0].source == "Google News (Example Times)"
+    assert items[0].published_at == "2026-10-27T14:05:00+00:00"

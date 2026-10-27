@@ -40,8 +40,10 @@ def parse_rss(source: str, content: bytes | str) -> list[SourceItem]:
         body = entry.get("summary") or ""
         if entry.get("content"):
             body = entry.content[0].get("value", body)
+        # Buscas do Google News trazem notícias de vários sites; guarda o nome do site original.
+        publisher = (entry.get("source") or {}).get("title")
         items.append(SourceItem(
-            source=source,
+            source=f"{source} ({publisher})" if publisher else source,
             url=entry.get("link", ""),
             title=_strip_html(entry.get("title", "")),
             body=_strip_html(body)[:4000],
