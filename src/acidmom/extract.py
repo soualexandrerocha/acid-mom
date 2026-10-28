@@ -22,7 +22,17 @@ ACCIDENT_TERMS = re.compile(
     r"sank|sink|sinking|capsiz|listing|adrift|disabled|abandon|rescue|missing|flooding|"
     r"overboard|containers? lost|lost containers|hull breach|struck|casualty|"
     r"colis[aã]o|abalroa|encalh|inc[eê]ndio|naufr[aá]g|afund|explos[aã]o|[aà] deriva|"
-    r"desaparecid|resgat|vazamento|cont[eê]ineres? ca[ií]",
+    r"desaparecid|resgat|vazamento|cont[eê]ineres? ca[ií]|"
+    # Outros idiomas (as buscas do Google News em fontes.toml): es, de, fr, it, nl, el, tr, ru, zh, ja, ko.
+    r"colisi[oó]n|encall|naufragi|hundi|incendio|en llamas|explosi[oó]n|a la deriva|"
+    r"kollision|kollidiert|gerammt|rammt|havarie|schiffsbrand|in brand|in flammen|feuer|gesunken|auf grund|"
+    r"[ée]chou|incendie|en feu|naufrage|d[ée]rive|coul[ée]|"
+    r"collisione|incagli|in fiamme|esplosione|affondat|"
+    r"aanvaring|aan de grond|gezonken|explosie|op drift|"
+    r"σύγκρουσ|προσάραξ|φωτιά|πυρκαγιά|βύθισ|έκρηξ|ναυάγι|"
+    r"çarpış|karaya|yangın|batt[ıi]|patlama|"
+    r"столкнов|на мел[ьи]|пожар|подрыв|затонул|взрыв|крушени|"
+    r"碰撞|搁浅|起火|火灾|沉没|爆炸|衝突|座礁|火災|沈没|爆発|충돌|좌초|화재|침몰|폭발",
     re.IGNORECASE,
 )
 
@@ -37,7 +47,13 @@ def passes_keyword_filter(title: str, body: str) -> bool:
 ATTACK_TERMS = re.compile(
     r"\bmines?\b|\bmined\b|missile|\bdrones?\b|torpedo|projectile|houthi|\battack|\bstrikes? on\b|"
     r"pirat|hijack|\bseiz|\bboarded by\b|"
-    r"\bminas?\b|m[ií]ssil|ataque|atacad|pirata|sequestr|apreendid|houthis?",
+    r"\bminas?\b|m[ií]ssil|ataque|atacad|pirata|sequestr|apreendid|houthis?|"
+    # Outros idiomas: minas, ataques, mísseis, drones e piratas.
+    r"minen|seemine|zeemijn|νάρκ|mayın|\bмин(а|е|у|ы|ой)\b|触雷|水雷|機雷|기뢰|"
+    r"angriff|attaque|attacco|aanval|επίθεσ|saldır|атак|袭击|遇袭|攻撃|공격|"
+    r"misil|\brakete|\braket|füze|ракет|导弹|ミサイル|미사일|πύραυλ|"
+    r"\bdron|drohne|дрон|беспилот|无人机|無人機|ドローン|드론|İHA|"
+    r"korsan|пират|海盗|海賊|해적|πειρατ",
     re.IGNORECASE,
 )
 

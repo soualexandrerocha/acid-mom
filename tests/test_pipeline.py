@@ -119,3 +119,24 @@ def test_uncertain_cause_gets_no_alert_but_is_marked(monkeypatch):
 def test_placeholder_vessel_names_are_dropped():
     data = extract.clean({"vessels": [{"name": "MSC container ship (name not given in text)"}, {"name": "Mein Schiff 3"}]})
     assert [v["name"] for v in data["vessels"]] == ["", "Mein Schiff 3"]
+
+
+def test_other_languages_pass_filter_and_attacks_are_caught():
+    accidents = [
+        '"Mein Schiff 3" rammt Containerschiffe: Ermittlungen gegen Kapitän',
+        "Un paquebot entre en collision avec un porte-conteneurs à Bremerhaven",
+        "У сухогруза на мели в Янтарном Калининградской области",
+        "Bremerhaven’de üç gemili kaza, yangın",
+        "货轮在长江口搁浅",
+    ]
+    attacks = [
+        "Un pétrolier en feu dans le détroit d'Ormuz après avoir percuté des mines",
+        "Hürmüz Boğazı’nda tanker mayına çarptı, yangın çıktı",
+        "КСИР сообщил о подрыве танкера на мине в Ормузском проливе",
+        "伊朗：一油轮在霍尔木兹海峡东部触雷起火",
+        "이란 \"호르무즈서 기뢰 부딪힌 유조선 화재\"",
+        "Ιράν: Πετρελαιοφόρο πήρε φωτιά στο Ορμούζ μετά από πρόσκρουση σε νάρκες",
+    ]
+    assert all(extract.passes_keyword_filter(t, "") for t in accidents + attacks)
+    assert not any(extract.is_attack(t) for t in accidents)
+    assert all(extract.is_attack(t) for t in attacks)

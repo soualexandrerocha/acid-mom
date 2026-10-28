@@ -4,7 +4,7 @@ Rastreador automático de acidentes no transporte marítimo de cargas, no mundo 
 
 De hora em hora, a ferramenta:
 
-1. **Coleta** notícias de sites do setor (RSS), buscas no Google News (inglês e português) e avisos náuticos (NAVAREA, da NGA).
+1. **Coleta** notícias de sites do setor (RSS), buscas no Google News em 13 idiomas e avisos náuticos (NAVAREA, da NGA).
 2. **Filtra** por palavras-chave, sem custo, o que claramente não fala de acidente.
 3. **Lê** o que sobrou com o Claude, que decide se é um acidente com navio de carga e extrai navio, data, local, tipo de evento, gravidade e vítimas.
 4. **Junta** as notícias que falam do mesmo acidente num único registro.
