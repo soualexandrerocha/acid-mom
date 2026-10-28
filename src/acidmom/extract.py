@@ -123,6 +123,8 @@ needs towage or shore assistance.
 
 Rules:
 - Use only what the text says. Never guess an IMO number; leave it empty if absent.
+- vessels[].name is only the ship's own name (e.g. "Ever Given"). If the text does not give it, \
+leave it empty; never write a description such as "MSC container ship" or "name not given".
 - event_date is YYYY-MM-DD when the text gives or clearly implies it, otherwise empty.
 - lat/lon in decimal degrees, south and west negative. If the text gives coordinates (navigational \
 warnings often do), use them and set coords_approximate false. Otherwise, if it names a specific \
@@ -164,4 +166,18 @@ def extract(client: anthropic.Anthropic, title: str, body: str, source: str,
         log.warning("Extração interrompida (%s): %s", response.stop_reason, title[:80])
         return None
     text = next(b.text for b in response.content if b.type == "text")
-    return json.loads(text)
+    return clean(json.loads(text))
+
+
+# O modelo às vezes escreve uma descrição no lugar do nome ("MSC container ship (name not given)").
+PLACEHOLDER_NAME = re.compile(
+    r"not (given|named|identified|stated)|unknown|unnamed|unidentified|n[aã]o (informad|identificad)|\(",
+    re.IGNORECASE,
+)
+
+
+def clean(data: dict) -> dict:
+    for vessel in data.get("vessels", []):
+        if PLACEHOLDER_NAME.search(vessel.get("name") or ""):
+            vessel["name"] = ""
+    return data
