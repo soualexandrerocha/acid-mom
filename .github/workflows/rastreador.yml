@@ -1,12 +1,6 @@
 name: Rastreador
 
 on:
-  schedule:
-    # Minuto 17, e não 0: na virada da hora o GitHub fica sobrecarregado e atrasa ou pula rodadas.
-    # O GitHub atrasa ou pula agendamentos; por isso cada rodada também dispara a próxima
-    # (job "proxima", no fim). O agendamento fica como reserva, caso a corrente pare.
-    - cron: "17 * * * *"   # de hora em hora: coletar, processar e avisar
-    - cron: "17 11 * * 1"  # segundas, 8h17 de Brasília: relatório semanal
   workflow_dispatch:
     inputs:
       comando:
@@ -16,111 +10,24 @@ on:
         default: rodar
 
 permissions:
-  contents: write
-  pages: write     # publicar o mapa no GitHub Pages
-  id-token: write
-
-concurrency:
-  group: rastreador
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  rodar:
+  diagnostico:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.mapa.outputs.page_url }}
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - run: pip install .
-
-      # O banco SQLite fica guardado no branch "dados", separado do código.
-      - name: Baixar o banco
+      - name: Testar buscas
         run: |
-          mkdir -p data
-          if git fetch --depth=1 origin dados; then
-            git show origin/dados:acidmom.sqlite > data/acidmom.sqlite
-          fi
-
-      - name: Rodar
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          ACIDMOM_MODEL: ${{ vars.ACIDMOM_MODEL }}
-        run: |
-          if [ "${{ github.event.schedule }}" = "17 11 * * 1" ]; then
-            acidmom semanal
-          else
-            acidmom "${{ inputs.comando || 'rodar' }}"
-          fi
-
-      - name: Guardar o banco
-        run: |
-          git config user.name "acid-mom bot"
-          git config user.email "acid-mom@users.noreply.github.com"
-          cp data/acidmom.sqlite /tmp/acidmom.sqlite
-          if git rev-parse --verify -q origin/dados; then
-            git worktree add /tmp/dados origin/dados
-          else
-            git worktree add --detach /tmp/dados
-            git -C /tmp/dados checkout --orphan dados-novo
-            git -C /tmp/dados rm -rfq --ignore-unmatch .
-          fi
-          cp /tmp/acidmom.sqlite /tmp/dados/acidmom.sqlite
-          cd /tmp/dados
-          git add acidmom.sqlite
-          git commit -qm "Banco atualizado em $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
-          git push origin HEAD:dados
-
-      # O mapa (site/index.html) é publicado no GitHub Pages a cada rodada.
-      - name: Preparar o mapa
-        if: hashFiles('site/index.html') != ''
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-      - name: Publicar o mapa
-        id: mapa
-        if: hashFiles('site/index.html') != ''
-        uses: actions/deploy-pages@v4
-
-  # Espera até o minuto 17 da hora seguinte e dispara a próxima rodada, a não ser que já haja
-  # outra na fila (por exemplo, uma do agendamento): assim só existe uma corrente de rodadas.
-  proxima:
-    needs: rodar
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 75
-    permissions:
-      actions: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - name: Esperar a próxima hora
-        run: |
-          agora=$(date -u +%s)
-          alvo=$(( (agora / 3600 + 1) * 3600 + 17 * 60 ))
-          if [ $(( alvo - agora )) -gt 3600 ]; then alvo=$(( alvo - 3600 )); fi
-          echo "Próxima rodada às $(date -u -d @$alvo +%H:%M) UTC"
-          sleep $(( alvo - agora ))
-
-      - name: Disparar a próxima rodada
-        run: |
-          outras=$(gh run list --workflow rastreador.yml --limit 20 --json databaseId,status \
-            --jq "[.[] | select(.databaseId != ${{ github.run_id }} and .status != \"completed\")] | length")
-          if [ "$outras" -gt 0 ]; then
-            echo "Já há outra rodada na fila; ela continua a corrente."
-          else
-            gh workflow run rastreador.yml -f comando=rodar
-          fi
+          f() { echo "== $1"; curl -sSL -m 30 "$2" -o out.txt -w 'HTTP %{http_code} %{size_download}B\n'; python3 -c "import re,html;t=open('out.txt',errors='ignore').read();it=re.findall(r'<item><title>(.*?)</title>',t,re.S);print('itens:',len(it));[print('  ',html.unescape(x)[:120]) for x in it[:5]]"; sleep 2; }
+          f 'espanhol' 'https://news.google.com/rss/search?q=(buque%20OR%20carguero%20OR%20petrolero%20OR%20portacontenedores%20OR%20granelero)%20(encalla%20OR%20encallado%20OR%20colisi%C3%B3n%20OR%20incendio%20OR%20naufragio%20OR%20hundimiento%20OR%20explosi%C3%B3n%20OR%20%22a%20la%20deriva%22)%20when%3A1d&hl=es&gl=ES&ceid=ES:es'
+          f 'alemão' 'https://news.google.com/rss/search?q=(Frachter%20OR%20Containerschiff%20OR%20Tanker%20OR%20Massengutfrachter%20OR%20Frachtschiff%20OR%20Schiff)%20(Kollision%20OR%20kollidiert%20OR%20gerammt%20OR%20rammt%20OR%20Havarie%20OR%20Brand%20OR%20Feuer%20OR%20gesunken%20OR%20%22auf%20Grund%20gelaufen%22%20OR%20Explosion)%20when%3A1d&hl=de&gl=DE&ceid=DE:de'
+          f 'francês' 'https://news.google.com/rss/search?q=(cargo%20OR%20%22porte-conteneurs%22%20OR%20p%C3%A9trolier%20OR%20vraquier%20OR%20navire)%20(collision%20OR%20%C3%A9chou%C3%A9%20OR%20%C3%A9chouement%20OR%20incendie%20OR%20naufrage%20OR%20explosion%20OR%20%22%C3%A0%20la%20d%C3%A9rive%22%20OR%20coul%C3%A9)%20when%3A1d&hl=fr&gl=FR&ceid=FR:fr'
+          f 'italiano' 'https://news.google.com/rss/search?q=(nave%20OR%20portacontainer%20OR%20petroliera%20OR%20mercantile%20OR%20portarinfuse)%20(collisione%20OR%20incagliata%20OR%20incendio%20OR%20naufragio%20OR%20esplosione%20OR%20%22alla%20deriva%22%20OR%20affondata)%20when%3A1d&hl=it&gl=IT&ceid=IT:it'
+          f 'holandês' 'https://news.google.com/rss/search?q=(vrachtschip%20OR%20containerschip%20OR%20tanker%20OR%20bulkcarrier%20OR%20schip)%20(aanvaring%20OR%20%22aan%20de%20grond%22%20OR%20brand%20OR%20gezonken%20OR%20explosie%20OR%20%22op%20drift%22)%20when%3A1d&hl=nl&gl=NL&ceid=NL:nl'
+          f 'grego' 'https://news.google.com/rss/search?q=(%CF%86%CE%BF%CF%81%CF%84%CE%B7%CE%B3%CF%8C%20OR%20%CE%B4%CE%B5%CE%BE%CE%B1%CE%BC%CE%B5%CE%BD%CF%8C%CF%80%CE%BB%CE%BF%CE%B9%CE%BF%20OR%20%CF%80%CE%BB%CE%BF%CE%AF%CE%BF)%20(%CF%83%CF%8D%CE%B3%CE%BA%CF%81%CE%BF%CF%85%CF%83%CE%B7%20OR%20%CF%80%CF%81%CE%BF%CF%83%CE%AC%CF%81%CE%B1%CE%BE%CE%B7%20OR%20%CF%86%CF%89%CF%84%CE%B9%CE%AC%20OR%20%CF%80%CF%85%CF%81%CE%BA%CE%B1%CE%B3%CE%B9%CE%AC%20OR%20%CE%B2%CF%8D%CE%B8%CE%B9%CF%83%CE%B7%20OR%20%CE%AD%CE%BA%CF%81%CE%B7%CE%BE%CE%B7%20OR%20%CE%BD%CE%B1%CF%85%CE%AC%CE%B3%CE%B9%CE%BF)%20when%3A1d&hl=el&gl=GR&ceid=GR:el'
+          f 'turco' 'https://news.google.com/rss/search?q=(gemi%20OR%20tanker%20OR%20%22y%C3%BCk%20gemisi%22%20OR%20konteyner)%20(%C3%A7arp%C4%B1%C5%9Fma%20OR%20%22karaya%20oturdu%22%20OR%20yang%C4%B1n%20OR%20batt%C4%B1%20OR%20patlama%20OR%20kaza)%20when%3A1d&hl=tr&gl=TR&ceid=TR:tr'
+          f 'russo' 'https://news.google.com/rss/search?q=(%D1%81%D1%83%D0%B4%D0%BD%D0%BE%20OR%20%D1%82%D0%B0%D0%BD%D0%BA%D0%B5%D1%80%20OR%20%D1%81%D1%83%D1%85%D0%BE%D0%B3%D1%80%D1%83%D0%B7%20OR%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%B9%D0%BD%D0%B5%D1%80%D0%BE%D0%B2%D0%BE%D0%B7)%20(%D1%81%D1%82%D0%BE%D0%BB%D0%BA%D0%BD%D0%BE%D0%B2%D0%B5%D0%BD%D0%B8%D0%B5%20OR%20%22%D1%81%D0%B5%D0%BB%20%D0%BD%D0%B0%20%D0%BC%D0%B5%D0%BB%D1%8C%22%20OR%20%D0%BF%D0%BE%D0%B6%D0%B0%D1%80%20OR%20%D0%B7%D0%B0%D1%82%D0%BE%D0%BD%D1%83%D0%BB%20OR%20%D0%B2%D0%B7%D1%80%D1%8B%D0%B2%20OR%20%D0%BA%D1%80%D1%83%D1%88%D0%B5%D0%BD%D0%B8%D0%B5)%20when%3A1d&hl=ru&gl=RU&ceid=RU:ru'
+          f 'chinês' 'https://news.google.com/rss/search?q=(%E8%B4%A7%E8%BD%AE%20OR%20%E8%B4%A7%E8%88%B9%20OR%20%E6%B2%B9%E8%BD%AE%20OR%20%E9%9B%86%E8%A3%85%E7%AE%B1%E8%88%B9%20OR%20%E6%95%A3%E8%B4%A7%E8%88%B9)%20(%E7%A2%B0%E6%92%9E%20OR%20%E6%90%81%E6%B5%85%20OR%20%E8%B5%B7%E7%81%AB%20OR%20%E7%81%AB%E7%81%BE%20OR%20%E6%B2%89%E6%B2%A1%20OR%20%E7%88%86%E7%82%B8)%20when%3A1d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans'
+          f 'japonês' 'https://news.google.com/rss/search?q=(%E8%B2%A8%E7%89%A9%E8%88%B9%20OR%20%E3%82%BF%E3%83%B3%E3%82%AB%E3%83%BC%20OR%20%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E8%88%B9)%20(%E8%A1%9D%E7%AA%81%20OR%20%E5%BA%A7%E7%A4%81%20OR%20%E7%81%AB%E7%81%BD%20OR%20%E6%B2%88%E6%B2%A1%20OR%20%E7%88%86%E7%99%BA)%20when%3A1d&hl=ja&gl=JP&ceid=JP:ja'
+          f 'coreano' 'https://news.google.com/rss/search?q=(%ED%99%94%EB%AC%BC%EC%84%A0%20OR%20%EC%9C%A0%EC%A1%B0%EC%84%A0%20OR%20%EC%BB%A8%ED%85%8C%EC%9D%B4%EB%84%88%EC%84%A0%20OR%20%EB%B2%8C%ED%81%AC%EC%84%A0)%20(%EC%B6%A9%EB%8F%8C%20OR%20%EC%A2%8C%EC%B4%88%20OR%20%ED%99%94%EC%9E%AC%20OR%20%EC%B9%A8%EB%AA%B0%20OR%20%ED%8F%AD%EB%B0%9C)%20when%3A1d&hl=ko&gl=KR&ceid=KR:ko'
