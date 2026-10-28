@@ -114,3 +114,8 @@ def test_uncertain_cause_gets_no_alert_but_is_marked(monkeypatch):
     # Uma fonte que explica a causa tira a dúvida.
     add(conn, mention(severity="very_serious", event_date=today, cause_uncertain=False), 2)
     assert conn.execute("SELECT cause_uncertain FROM incident").fetchone()[0] == 0
+
+
+def test_placeholder_vessel_names_are_dropped():
+    data = extract.clean({"vessels": [{"name": "MSC container ship (name not given in text)"}, {"name": "Mein Schiff 3"}]})
+    assert [v["name"] for v in data["vessels"]] == ["", "Mein Schiff 3"]
