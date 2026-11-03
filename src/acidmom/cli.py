@@ -35,6 +35,14 @@ def cmd_collect(conn, config) -> None:
     log.info("Coletados %d itens, %d novos", len(items), db.save_items(conn, items))
 
 
+def _judge(client, mention: dict, candidates: list) -> int | None:
+    try:
+        return extract.same_event(client, mention, candidates)
+    except anthropic.APIError as exc:
+        log.warning("Erro na segunda opinião da deduplicação: %s", exc)
+        return None
+
+
 def cmd_process(conn, limit: int) -> None:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         log.warning("ANTHROPIC_API_KEY não configurada; os itens coletados ficam para a próxima rodada.")
@@ -65,7 +73,7 @@ def cmd_process(conn, limit: int) -> None:
             else:
                 data["summary_pt"] = revisao.revisar(data["summary_pt"])
                 mention_id = db.save_mention(conn, row["id"], data)
-                _, is_new = dedup.attach(conn, mention_id, data)
+                _, is_new = dedup.attach(conn, mention_id, data, judge=lambda m, c: _judge(client, m, c))
                 counts["new_incidents"] += is_new
                 status = "extracted"
         counts[status] += 1

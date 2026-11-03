@@ -232,3 +232,49 @@ def clean(data: dict) -> dict:
         if PLACEHOLDER_NAME.search(vessel.get("name") or ""):
             vessel["name"] = ""
     return data
+
+
+JUDGE_SYSTEM = """You decide whether a new report about a maritime accident describes the same
+event as one of the incidents already recorded. Reports come from news in many languages, often
+without the ship's name and with vague places ("Mediterranean Sea", "off Cyprus").
+
+Treat it as the same event when the details fit together: same kind of accident, compatible place
+and dates, and no contradiction in ship type, flag, crew numbers or rescued people. Different
+places, a different ship name, or contradictory numbers mean different events. When in doubt,
+answer null: a duplicate on the map is better than hiding a real accident."""
+
+JUDGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "same_incident_id": {"type": ["integer", "null"]},
+        "reason": {"type": "string"},
+    },
+    "required": ["same_incident_id", "reason"],
+    "additionalProperties": False,
+}
+
+
+def _describe(fields: dict) -> str:
+    keys = ("event_date", "vessel_name", "vessel_type", "event_type", "location", "country",
+            "lat", "lon", "dead", "missing", "summary")
+    return "; ".join(f"{k}={fields[k]}" for k in keys if fields.get(k) not in (None, ""))
+
+
+def same_event(client: anthropic.Anthropic, mention: dict, candidates: list) -> int | None:
+    """Pergunta ao Claude se a menção é um dos acidentes candidatos. Devolve o id ou None."""
+    vessel = (mention.get("vessels") or [{}])[0]
+    new = _describe(mention | {"vessel_name": vessel.get("name"), "vessel_type": vessel.get("type"),
+                               "summary": mention.get("summary_pt")})
+    known = "\n".join(f"- id {row['id']}: {_describe(dict(row))}" for row in candidates)
+    response = client.beta.messages.create(
+        model=MODEL,
+        max_tokens=1000,
+        system=JUDGE_SYSTEM,
+        messages=[{"role": "user", "content": f"New report:\n{new}\n\nRecorded incidents:\n{known}"}],
+        output_config={"effort": "low", "format": {"type": "json_schema", "schema": JUDGE_SCHEMA}},
+    )
+    if response.stop_reason != "end_turn":
+        return None
+    answer = json.loads(next(b.text for b in response.content if b.type == "text"))
+    log.info("Segunda opinião: %s (%s)", answer["same_incident_id"], answer["reason"][:120])
+    return answer["same_incident_id"]

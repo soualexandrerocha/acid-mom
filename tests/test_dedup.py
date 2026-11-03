@@ -79,3 +79,41 @@ def test_unnamed_ships_same_event_same_place_are_merged():
     _, other_event = add(conn, mention(vessels=unnamed, event_type="grounding", lat=43.6, lon=39.7), 3)
     _, far = add(conn, mention(vessels=unnamed, event_type="fire_explosion", lat=26.6, lon=56.3), 4)
     assert other_event and far
+
+
+def test_same_name_merges_even_days_apart_but_other_ship_does_not():
+    conn = db.connect(":memory:")
+    ship = [{"name": "Prospector 5", "imo": "", "type": "", "flag": ""}]
+    first, _ = add(conn, mention(vessels=ship, event_type="flooding_foundering", event_date="2026-10-28"), 1)
+    again, is_new = add(conn, mention(vessels=ship, event_type="flooding_foundering", event_date="2026-11-03"), 2)
+    assert first == again and not is_new
+    other = [{"name": "Atlantic Hope", "imo": "", "type": "", "flag": ""}]
+    _, is_new = add(conn, mention(vessels=other, event_type="flooding_foundering", event_date="2026-11-03"), 3)
+    assert is_new
+
+
+def test_judge_merges_vague_reports_and_its_answer_is_checked():
+    conn = db.connect(":memory:")
+    unnamed = [{"name": "", "imo": "", "type": "cargo ship", "flag": ""}]
+    sink = dict(vessels=unnamed, event_type="flooding_foundering", event_date="2026-10-31")
+    first, _ = add(conn, mention(**sink, location="off Paphos, Cyprus", lat=34.75, lon=32.4, coords_approximate=True), 1)
+    seen = []
+
+    def judge(m, candidates):
+        seen.append([row["id"] for row in candidates])
+        return candidates[0]["id"]
+
+    db.save_items(conn, [db.SourceItem("t", "https://x/2", "t")])
+    vague = mention(**sink, location="Mediterranean Sea", country="", lat=None, lon=None)
+    same, is_new = dedup.attach(conn, db.save_mention(conn, 2, vague), vague, judge=judge)
+    assert same == first and not is_new and seen == [[first]]
+
+    # Resposta fora da lista de candidatos é ignorada; tipo diferente nem vai ao juiz.
+    db.save_items(conn, [db.SourceItem("t", "https://x/3", "t")])
+    _, is_new = dedup.attach(conn, db.save_mention(conn, 3, vague), vague, judge=lambda m, c: 999)
+    assert is_new
+    db.save_items(conn, [db.SourceItem("t", "https://x/4", "t")])
+    fire = mention(**(sink | {"event_type": "fire_explosion"}), lat=None, lon=None)
+    seen.clear()
+    _, is_new = dedup.attach(conn, db.save_mention(conn, 4, fire), fire, judge=judge)
+    assert is_new and seen == []
