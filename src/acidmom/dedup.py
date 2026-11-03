@@ -13,6 +13,14 @@ MAX_DISTANCE_KM = 300
 # Sem nome de navio, a mesma ocorrência no mesmo lugar conta como o mesmo acidente.
 UNNAMED_DISTANCE_KM = 50
 UNNAMED_SCORE = 0.85
+# Mesmo nome (quase idêntico) aceita datas mais distantes: notícias sobre o mesmo naufrágio
+# seguem saindo por dias, e a data do evento às vezes vem como a data da notícia.
+SAME_NAME_RATIO = 0.95
+SAME_NAME_DATE_WINDOW_DAYS = 10
+# Segunda opinião do Claude: só para candidatos do mesmo tipo de evento e não tão distantes.
+JUDGE_MAX_DISTANCE_KM = 1500
+JUDGE_MAX_CANDIDATES = 15
+JUDGE_SCORE = 0.8
 
 SEVERITY_RANK = {"unknown": 0, "marine_incident": 1, "less_serious": 2, "serious": 3, "very_serious": 4}
 VESSEL_PREFIXES = re.compile(r"^(mv|m/v|mt|m/t|ms|m/s|sv|lng|lpg|navio)\s+", re.IGNORECASE)
@@ -38,11 +46,31 @@ def distance_km(lat1, lon1, lat2, lon2) -> float:
     return 6371 * 2 * math.asin(math.sqrt(a))
 
 
+def _name_ratio(mention: dict, incident: sqlite3.Row) -> float:
+    best = 0.0
+    for vessel in mention.get("vessels", []):
+        if vessel.get("name") and incident["vessel_name"]:
+            a, b = normalize_name(vessel["name"]), normalize_name(incident["vessel_name"])
+            if a and b:
+                best = max(best, SequenceMatcher(None, a, b).ratio())
+    return best
+
+
+def _same_vessel(mention: dict, incident: sqlite3.Row) -> bool:
+    if any(v.get("imo") and v["imo"] == incident["imo"] for v in mention.get("vessels", [])):
+        return True
+    return _name_ratio(mention, incident) >= SAME_NAME_RATIO
+
+
 def match_score(mention: dict, incident: sqlite3.Row) -> float:
     """0 a 1: chance de a menção e o acidente serem o mesmo evento."""
     m_date, i_date = _parse_date(mention.get("event_date")), _parse_date(incident["event_date"])
-    if m_date and i_date and abs((m_date - i_date).days) > DATE_WINDOW_DAYS:
+    gap = abs((m_date - i_date).days) if m_date and i_date else 0
+    if gap > SAME_NAME_DATE_WINDOW_DAYS:
         return 0.0
+    if gap > DATE_WINDOW_DAYS:
+        # Só o mesmo navio (mesmo IMO ou nome quase igual) passa da janela curta.
+        return 1.0 if _same_vessel(mention, incident) else 0.0
     # Só compara distância entre coordenadas exatas: as aproximadas podem estar longe do ponto real.
     if (None not in (mention.get("lat"), mention.get("lon"), incident["lat"], incident["lon"])
             and not mention.get("coords_approximate") and not incident["coords_approx"]
@@ -71,13 +99,41 @@ def match_score(mention: dict, incident: sqlite3.Row) -> float:
 def find_match(conn: sqlite3.Connection, mention: dict) -> tuple[int, float] | None:
     """Procura um acidente compatível entre os recentes. Devolve (id, escore) ou None."""
     ref = _parse_date(mention.get("event_date")) or date.today()
-    since = (ref - timedelta(days=DATE_WINDOW_DAYS + 7)).isoformat()
+    since = (ref - timedelta(days=SAME_NAME_DATE_WINDOW_DAYS + 3)).isoformat()
     rows = conn.execute(
         "SELECT * FROM incident WHERE COALESCE(event_date, created_at) >= ?", (since,)
     ).fetchall()
     scored = [(row["id"], match_score(mention, row)) for row in rows]
     scored = [s for s in scored if s[1] >= MATCH_THRESHOLD]
     return max(scored, key=lambda s: s[1]) if scored else None
+
+
+def judge_candidates(conn: sqlite3.Connection, mention: dict) -> list[sqlite3.Row]:
+    """Acidentes que podem ser o mesmo evento, mas que as regras não conseguem decidir.
+
+    Caso típico: notícias em vários idiomas sobre o mesmo naufrágio, sem o nome do navio
+    e com lugares vagos ("Mar Mediterrâneo", "ao largo de Chipre").
+    """
+    ref = _parse_date(mention.get("event_date")) or date.today()
+    since = (ref - timedelta(days=DATE_WINDOW_DAYS)).isoformat()
+    until = (ref + timedelta(days=DATE_WINDOW_DAYS)).isoformat()
+    rows = conn.execute(
+        """SELECT * FROM incident WHERE event_type = ?
+               AND COALESCE(event_date, substr(created_at, 1, 10)) BETWEEN ? AND ?
+           ORDER BY id DESC""",
+        (mention.get("event_type"), since, until),
+    ).fetchall()
+    named = any(v.get("name") for v in mention.get("vessels", []))
+    out = []
+    for row in rows:
+        # Dois nomes diferentes são dois navios diferentes.
+        if named and row["vessel_name"] and _name_ratio(mention, row) < 0.6:
+            continue
+        if (None not in (mention.get("lat"), mention.get("lon"), row["lat"], row["lon"])
+                and distance_km(mention["lat"], mention["lon"], row["lat"], row["lon"]) > JUDGE_MAX_DISTANCE_KM):
+            continue
+        out.append(row)
+    return out[:JUDGE_MAX_CANDIDATES]
 
 
 def _first_vessel(mention: dict) -> dict:
@@ -136,9 +192,19 @@ def merge_into(conn: sqlite3.Connection, incident_id: int, mention: dict) -> Non
     )
 
 
-def attach(conn: sqlite3.Connection, mention_id: int, mention: dict) -> tuple[int, bool]:
-    """Liga a menção a um acidente (existente ou novo). Devolve (incident_id, é_novo)."""
+def attach(conn: sqlite3.Connection, mention_id: int, mention: dict, judge=None) -> tuple[int, bool]:
+    """Liga a menção a um acidente (existente ou novo). Devolve (incident_id, é_novo).
+
+    judge(mention, candidatos) -> id ou None: segunda opinião (o Claude) para os casos
+    em que as regras não decidem. Sem judge, valem só as regras.
+    """
     match = find_match(conn, mention)
+    if not match and judge:
+        candidates = judge_candidates(conn, mention)
+        if candidates:
+            chosen = judge(mention, candidates)
+            if chosen in {row["id"] for row in candidates}:
+                match = (chosen, JUDGE_SCORE)
     if match:
         incident_id, score = match
         merge_into(conn, incident_id, mention)
