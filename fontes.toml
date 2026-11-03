@@ -82,6 +82,61 @@ url = "https://news.google.com/rss/search?q=(%E8%B2%A8%E7%89%A9%E8%88%B9%20OR%20
 nome = "Google News"  # coreano
 url = "https://news.google.com/rss/search?q=(%ED%99%94%EB%AC%BC%EC%84%A0%20OR%20%EC%9C%A0%EC%A1%B0%EC%84%A0%20OR%20%EC%BB%A8%ED%85%8C%EC%9D%B4%EB%84%88%EC%84%A0%20OR%20%EB%B2%8C%ED%81%AC%EC%84%A0)%20(%EC%B6%A9%EB%8F%8C%20OR%20%EC%A2%8C%EC%B4%88%20OR%20%ED%99%94%EC%9E%AC%20OR%20%EC%B9%A8%EB%AA%B0%20OR%20%ED%8F%AD%EB%B0%9C)%20when%3A1d&hl=ko&gl=KR&ceid=KR:ko"
 
+# Acidentes no embarque e desembarque do prático (escada de prático, guincho, lancha do prático).
+# Uma busca por idioma. Em cada bloco, o comentário mostra a busca sem codificação.
+
+[[rss]]
+nome = "Google News"  # prático, inglês: ("pilot ladder" OR "pilot boat" OR "pilot launch" OR "pilot transfer" OR "marine pilot" OR "harbour pilot" OR "harbor pilot" OR "maritime pilot") (fell OR falls OR died OR dies OR killed OR injured OR missing OR overboard OR collision OR capsized OR accident)
+url = "https://news.google.com/rss/search?q=%28%22pilot%20ladder%22%20OR%20%22pilot%20boat%22%20OR%20%22pilot%20launch%22%20OR%20%22pilot%20transfer%22%20OR%20%22marine%20pilot%22%20OR%20%22harbour%20pilot%22%20OR%20%22harbor%20pilot%22%20OR%20%22maritime%20pilot%22%29%20%28fell%20OR%20falls%20OR%20died%20OR%20dies%20OR%20killed%20OR%20injured%20OR%20missing%20OR%20overboard%20OR%20collision%20OR%20capsized%20OR%20accident%29%20when%3A1d&hl=en-US&gl=US&ceid=US:en"
+
+[[rss]]
+nome = "Google News"  # prático, português: ("escada de prático" OR "lancha do prático" OR "lancha da praticagem" OR prático OR praticagem) (morre OR morreu OR caiu OR queda OR ferido OR desaparecido OR acidente OR colisão)
+url = "https://news.google.com/rss/search?q=%28%22escada%20de%20pr%C3%A1tico%22%20OR%20%22lancha%20do%20pr%C3%A1tico%22%20OR%20%22lancha%20da%20praticagem%22%20OR%20pr%C3%A1tico%20OR%20praticagem%29%20%28morre%20OR%20morreu%20OR%20caiu%20OR%20queda%20OR%20ferido%20OR%20desaparecido%20OR%20acidente%20OR%20colis%C3%A3o%29%20when%3A1d&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+
+[[rss]]
+nome = "Google News"  # prático, espanhol: ("escala de práctico" OR "práctico del puerto" OR "lancha de prácticos" OR práctico OR practicaje) (cae OR cayó OR caída OR muere OR murió OR herido OR desaparecido OR accidente)
+url = "https://news.google.com/rss/search?q=%28%22escala%20de%20pr%C3%A1ctico%22%20OR%20%22pr%C3%A1ctico%20del%20puerto%22%20OR%20%22lancha%20de%20pr%C3%A1cticos%22%20OR%20pr%C3%A1ctico%20OR%20practicaje%29%20%28cae%20OR%20cay%C3%B3%20OR%20ca%C3%ADda%20OR%20muere%20OR%20muri%C3%B3%20OR%20herido%20OR%20desaparecido%20OR%20accidente%29%20when%3A1d&hl=es&gl=ES&ceid=ES:es"
+
+[[rss]]
+nome = "Google News"  # prático, alemão: (Lotse OR Lotsenleiter OR Lotsenboot OR Lotsenversetzboot) (stürzt OR gestürzt OR tödlich OR verletzt OR vermisst OR Unfall OR verunglückt)
+url = "https://news.google.com/rss/search?q=%28Lotse%20OR%20Lotsenleiter%20OR%20Lotsenboot%20OR%20Lotsenversetzboot%29%20%28st%C3%BCrzt%20OR%20gest%C3%BCrzt%20OR%20t%C3%B6dlich%20OR%20verletzt%20OR%20vermisst%20OR%20Unfall%20OR%20verungl%C3%BCckt%29%20when%3A1d&hl=de&gl=DE&ceid=DE:de"
+
+[[rss]]
+nome = "Google News"  # prático, francês: ("échelle de pilote" OR pilotine OR "pilote maritime" OR "pilote du port") (chute OR tombé OR mort OR décédé OR blessé OR disparu OR accident)
+url = "https://news.google.com/rss/search?q=%28%22%C3%A9chelle%20de%20pilote%22%20OR%20pilotine%20OR%20%22pilote%20maritime%22%20OR%20%22pilote%20du%20port%22%29%20%28chute%20OR%20tomb%C3%A9%20OR%20mort%20OR%20d%C3%A9c%C3%A9d%C3%A9%20OR%20bless%C3%A9%20OR%20disparu%20OR%20accident%29%20when%3A1d&hl=fr&gl=FR&ceid=FR:fr"
+
+[[rss]]
+nome = "Google News"  # prático, italiano: (biscaggina OR pilotina OR "pilota del porto" OR "scala del pilota") (caduto OR morto OR ferito OR disperso OR incidente)
+url = "https://news.google.com/rss/search?q=%28biscaggina%20OR%20pilotina%20OR%20%22pilota%20del%20porto%22%20OR%20%22scala%20del%20pilota%22%29%20%28caduto%20OR%20morto%20OR%20ferito%20OR%20disperso%20OR%20incidente%29%20when%3A1d&hl=it&gl=IT&ceid=IT:it"
+
+[[rss]]
+nome = "Google News"  # prático, holandês: (loodsladder OR loodsboot OR loodstender OR loods) (gevallen OR valt OR overleden OR omgekomen OR gewond OR vermist OR ongeval)
+url = "https://news.google.com/rss/search?q=%28loodsladder%20OR%20loodsboot%20OR%20loodstender%20OR%20loods%29%20%28gevallen%20OR%20valt%20OR%20overleden%20OR%20omgekomen%20OR%20gewond%20OR%20vermist%20OR%20ongeval%29%20when%3A1d&hl=nl&gl=NL&ceid=NL:nl"
+
+[[rss]]
+nome = "Google News"  # prático, grego: (πλοηγός OR πλοηγού OR ανεμόσκαλα OR πιλοτίνα) (πτώση OR έπεσε OR νεκρός OR σκοτώθηκε OR τραυματίστηκε OR αγνοείται OR ατύχημα)
+url = "https://news.google.com/rss/search?q=%28%CF%80%CE%BB%CE%BF%CE%B7%CE%B3%CF%8C%CF%82%20OR%20%CF%80%CE%BB%CE%BF%CE%B7%CE%B3%CE%BF%CF%8D%20OR%20%CE%B1%CE%BD%CE%B5%CE%BC%CF%8C%CF%83%CE%BA%CE%B1%CE%BB%CE%B1%20OR%20%CF%80%CE%B9%CE%BB%CE%BF%CF%84%CE%AF%CE%BD%CE%B1%29%20%28%CF%80%CF%84%CF%8E%CF%83%CE%B7%20OR%20%CE%AD%CF%80%CE%B5%CF%83%CE%B5%20OR%20%CE%BD%CE%B5%CE%BA%CF%81%CF%8C%CF%82%20OR%20%CF%83%CE%BA%CE%BF%CF%84%CF%8E%CE%B8%CE%B7%CE%BA%CE%B5%20OR%20%CF%84%CF%81%CE%B1%CF%85%CE%BC%CE%B1%CF%84%CE%AF%CF%83%CF%84%CE%B7%CE%BA%CE%B5%20OR%20%CE%B1%CE%B3%CE%BD%CE%BF%CE%B5%CE%AF%CF%84%CE%B1%CE%B9%20OR%20%CE%B1%CF%84%CF%8D%CF%87%CE%B7%CE%BC%CE%B1%29%20when%3A1d&hl=el&gl=GR&ceid=GR:el"
+
+[[rss]]
+nome = "Google News"  # prático, turco: ("kılavuz kaptan" OR "pilot merdiveni" OR "kılavuz botu" OR "pilot botu") (düştü OR öldü OR yaralandı OR kayıp OR kaza)
+url = "https://news.google.com/rss/search?q=%28%22k%C4%B1lavuz%20kaptan%22%20OR%20%22pilot%20merdiveni%22%20OR%20%22k%C4%B1lavuz%20botu%22%20OR%20%22pilot%20botu%22%29%20%28d%C3%BC%C5%9Ft%C3%BC%20OR%20%C3%B6ld%C3%BC%20OR%20yaraland%C4%B1%20OR%20kay%C4%B1p%20OR%20kaza%29%20when%3A1d&hl=tr&gl=TR&ceid=TR:tr"
+
+[[rss]]
+nome = "Google News"  # prático, russo: (лоцман OR штормтрап OR "лоцманский катер") (упал OR погиб OR пострадал OR пропал OR травма OR авария)
+url = "https://news.google.com/rss/search?q=%28%D0%BB%D0%BE%D1%86%D0%BC%D0%B0%D0%BD%20OR%20%D1%88%D1%82%D0%BE%D1%80%D0%BC%D1%82%D1%80%D0%B0%D0%BF%20OR%20%22%D0%BB%D0%BE%D1%86%D0%BC%D0%B0%D0%BD%D1%81%D0%BA%D0%B8%D0%B9%20%D0%BA%D0%B0%D1%82%D0%B5%D1%80%22%29%20%28%D1%83%D0%BF%D0%B0%D0%BB%20OR%20%D0%BF%D0%BE%D0%B3%D0%B8%D0%B1%20OR%20%D0%BF%D0%BE%D1%81%D1%82%D1%80%D0%B0%D0%B4%D0%B0%D0%BB%20OR%20%D0%BF%D1%80%D0%BE%D0%BF%D0%B0%D0%BB%20OR%20%D1%82%D1%80%D0%B0%D0%B2%D0%BC%D0%B0%20OR%20%D0%B0%D0%B2%D0%B0%D1%80%D0%B8%D1%8F%29%20when%3A1d&hl=ru&gl=RU&ceid=RU:ru"
+
+[[rss]]
+nome = "Google News"  # prático, chinês: (引航员 OR 引航梯 OR 引水员 OR 引航艇) (坠落 OR 落水 OR 死亡 OR 受伤 OR 失踪 OR 事故)
+url = "https://news.google.com/rss/search?q=%28%E5%BC%95%E8%88%AA%E5%91%98%20OR%20%E5%BC%95%E8%88%AA%E6%A2%AF%20OR%20%E5%BC%95%E6%B0%B4%E5%91%98%20OR%20%E5%BC%95%E8%88%AA%E8%89%87%29%20%28%E5%9D%A0%E8%90%BD%20OR%20%E8%90%BD%E6%B0%B4%20OR%20%E6%AD%BB%E4%BA%A1%20OR%20%E5%8F%97%E4%BC%A4%20OR%20%E5%A4%B1%E8%B8%AA%20OR%20%E4%BA%8B%E6%95%85%29%20when%3A1d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+
+[[rss]]
+nome = "Google News"  # prático, japonês: (水先人 OR パイロットラダー OR 水先艇) (転落 OR 落水 OR 死亡 OR 負傷 OR 事故)
+url = "https://news.google.com/rss/search?q=%28%E6%B0%B4%E5%85%88%E4%BA%BA%20OR%20%E3%83%91%E3%82%A4%E3%83%AD%E3%83%83%E3%83%88%E3%83%A9%E3%83%80%E3%83%BC%20OR%20%E6%B0%B4%E5%85%88%E8%89%87%29%20%28%E8%BB%A2%E8%90%BD%20OR%20%E8%90%BD%E6%B0%B4%20OR%20%E6%AD%BB%E4%BA%A1%20OR%20%E8%B2%A0%E5%82%B7%20OR%20%E4%BA%8B%E6%95%85%29%20when%3A1d&hl=ja&gl=JP&ceid=JP:ja"
+
+[[rss]]
+nome = "Google News"  # prático, coreano: (도선사 OR "도선 사다리" OR 도선선 OR "파일럿 사다리") (추락 OR 사망 OR 부상 OR 실종 OR 사고)
+url = "https://news.google.com/rss/search?q=%28%EB%8F%84%EC%84%A0%EC%82%AC%20OR%20%22%EB%8F%84%EC%84%A0%20%EC%82%AC%EB%8B%A4%EB%A6%AC%22%20OR%20%EB%8F%84%EC%84%A0%EC%84%A0%20OR%20%22%ED%8C%8C%EC%9D%BC%EB%9F%BF%20%EC%82%AC%EB%8B%A4%EB%A6%AC%22%29%20%28%EC%B6%94%EB%9D%BD%20OR%20%EC%82%AC%EB%A7%9D%20OR%20%EB%B6%80%EC%83%81%20OR%20%EC%8B%A4%EC%A2%85%20OR%20%EC%82%AC%EA%B3%A0%29%20when%3A1d&hl=ko&gl=KR&ceid=KR:ko"
+
 # Safety4Sea fica de fora por enquanto: em 2026-10-27 o endereço do feed redirecionava
 # para a página inicial e não trazia nenhuma notícia.
 # [[rss]]
