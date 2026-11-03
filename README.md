@@ -7,8 +7,9 @@ De hora em hora, a ferramenta:
 1. **Coleta** notícias de sites do setor (RSS), buscas no Google News em 13 idiomas (acidentes em geral e acidentes no embarque e desembarque do prático) e avisos náuticos (NAVAREA, da NGA).
 2. **Filtra** por palavras-chave, sem custo, o que claramente não fala de acidente.
 3. **Lê** o que sobrou com o Claude, que decide se é um acidente com navio de carga e extrai navio, data, local, tipo de evento, gravidade e vítimas.
-4. **Junta** as notícias que falam do mesmo acidente num único registro.
-5. **Avisa** por e-mail quando aparece um acidente muito grave (perda do navio, morte ou poluição grave).
+4. **Revisa** a ortografia do resumo em português com o LanguageTool (serviço gratuito), corrigindo só palavras que não existem no dicionário; nomes de navios e lugares ficam como estão.
+5. **Junta** as notícias que falam do mesmo acidente num único registro.
+6. **Avisa** por e-mail quando aparece um acidente muito grave (perda do navio, morte ou poluição grave).
 
 Toda segunda-feira, às 8h de Brasília, ela também manda um relatório com os acidentes da semana.
 
@@ -53,6 +54,7 @@ Sem as variáveis de e-mail configuradas, os e-mails aparecem só no log, sem en
 | `fontes.toml` | Lista de fontes e buscas |
 | `src/acidmom/collectors.py` | Baixa e lê cada fonte |
 | `src/acidmom/extract.py` | Filtro por palavras-chave e leitura com o Claude |
+| `src/acidmom/revisao.py` | Revisão ortográfica dos resumos |
 | `src/acidmom/dedup.py` | Junta notícias do mesmo acidente |
 | `src/acidmom/notify.py` | Aviso imediato e relatório semanal |
 | `src/acidmom/db.py` | Banco de dados |
