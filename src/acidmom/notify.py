@@ -27,6 +27,7 @@ EVENT_PT = {
     "hull_failure": "falha estrutural",
     "cargo_loss": "perda de carga",
     "occupational_fatality": "acidente de trabalho fatal",
+    "pilot_transfer": "acidente no embarque/desembarque do prático",
     "other": "outro",
 }
 ALERT_SEVERITIES = ("very_serious",)

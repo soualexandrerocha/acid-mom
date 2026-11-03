@@ -37,8 +37,34 @@ ACCIDENT_TERMS = re.compile(
 )
 
 
+# Acidentes no embarque e desembarque do prático (escada de prático, escada combinada, guincho,
+# lancha do prático). Essas notícias quase nunca usam as palavras de ACCIDENT_TERMS
+# ("prático morre ao cair da escada"), por isso têm a própria lista. Só termos compostos:
+# "pilot" ou "prático" sozinhos aparecem em muita notícia que não é do mar.
+PILOT_TERMS = re.compile(
+    r"pilot (ladder|boat|launch|hoist|transfer|boarding|cutter)|combination ladder|"
+    r"pilot (dies|died|killed|falls|fell|injured|missing|crushed)|"
+    r"(marine|maritime|harbou?r|port|sea|ship'?s?|river|bar) pilots?\b|"
+    r"escada de pr[aá]tico|lancha d[eao]s? pr[aá]tic|praticagem|"
+    r"pr[aá]tico (do porto|morre|morreu|cai|caiu|fica|ficou|ferid|desaparec|sofre)|"
+    r"escala de pr[aá]ctico|lancha de pr[aá]cticos|practicaje|"
+    r"pr[aá]ctico (del puerto|muere|muri[oó]|cae|cay[oó]|herido|desaparec)|"
+    r"\blotsen?\b|lotsen(leiter|boot|versetz|tender)|"
+    r"[ée]chelle de pilote|pilotine|pilote (maritime|du port|de port|de la station)|"
+    r"biscaggina|pilotina|pilota del porto|scala del pilota|"
+    r"loodsladder|loodsboot|loodstender|loodsvaartuig|beloodsing|"
+    r"πλοηγ|ανεμόσκαλ|πιλοτίνα|"
+    r"kılavuz kaptan|kılavuz botu|pilot merdiven|pilot botu|"
+    r"лоцман|штормтрап|"
+    r"引航员|引航梯|引水员|引航艇|领航员|水先人|水先案内|パイロットラダー|水先艇|"
+    r"도선사|도선 ?사다리|도선선|파일럿 ?사다리",
+    re.IGNORECASE,
+)
+
+
 def passes_keyword_filter(title: str, body: str) -> bool:
-    return bool(ACCIDENT_TERMS.search(f"{title}\n{body}"))
+    text = f"{title}\n{body}"
+    return bool(ACCIDENT_TERMS.search(text) or PILOT_TERMS.search(text))
 
 
 # Ataques ficam fora do escopo. Muitas notícias (as do Google News) chegam só com o título,
@@ -64,7 +90,8 @@ def is_attack(title: str) -> bool:
 
 EVENT_TYPES = [
     "collision", "contact", "grounding", "fire_explosion", "flooding_foundering",
-    "capsizing", "loss_of_control", "hull_failure", "cargo_loss", "occupational_fatality", "other",
+    "capsizing", "loss_of_control", "hull_failure", "cargo_loss", "occupational_fatality",
+    "pilot_transfer", "other",
 ]
 SEVERITIES = ["very_serious", "serious", "less_serious", "marine_incident", "unknown"]
 
@@ -124,9 +151,17 @@ is_relevant = true only if the item reports a specific accident or incident that
 least one such cargo ship. It is false for: fishing, passenger, leisure, naval or offshore-only \
 vessels; inland waterway barges and pushboats on rivers and lakes; attacks of any kind (missiles, \
 drones, mines, projectiles, piracy, armed boardings), even when they cause damage, fire or \
-casualties; general market news, opinion, court cases or reports about old accidents with \
+casualties; accidents with pilot boats or tugs that are not linked to a cargo ship; general market news, opinion, court cases or reports about old accidents with \
 nothing new; exercises and routine navigational warnings. When false, fill the other fields with \
 empty strings, "other", "unknown" or null.
+
+Pilot transfer accidents are relevant: a marine pilot boarding or leaving a cargo ship who \
+falls from (or with) the pilot ladder, combination ladder, accommodation ladder or pilot hoist; a \
+ladder, rope, step or hoist that breaks or is rigged wrongly during a transfer, even if nobody is \
+hurt; a pilot boat that strikes, is crushed against or capsizes alongside a cargo ship during the \
+transfer. Use event_type "pilot_transfer" for them, list the cargo ship first in vessels (the pilot \
+boat, if named, after it), and count the pilot among dead/missing/injured. A failure with no one \
+hurt is a marine_incident.
 
 Severity follows the IMO Casualty Investigation Code:
 - very_serious: total loss of the ship, loss of life, or severe pollution.

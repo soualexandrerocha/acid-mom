@@ -140,3 +140,26 @@ def test_other_languages_pass_filter_and_attacks_are_caught():
     assert all(extract.passes_keyword_filter(t, "") for t in accidents + attacks)
     assert not any(extract.is_attack(t) for t in accidents)
     assert all(extract.is_attack(t) for t in attacks)
+
+
+def test_pilot_transfer_accidents_pass_filter():
+    pilot = [
+        "Pilot dies after falling from pilot ladder while boarding bulk carrier",
+        "Marine pilot injured in fall at Port of Santos",
+        "Prático morre ao cair da escada de prático de navio graneleiro",
+        "Muere un práctico del puerto de Algeciras al caer al mar",
+        "Lotse stürzt beim Übersteigen auf Containerschiff",
+        "Un pilote du port du Havre chute de l'échelle de pilote",
+        "Pilota del porto cade dalla biscaggina di una nave",
+        "Loods gewond na val van loodsladder",
+        "Νεκρός πλοηγός στο λιμάνι του Πειραιά",
+        "Kılavuz kaptan gemiye çıkarken denize düştü",
+        "Лоцман погиб при высадке с сухогруза",
+        "引航员登轮时坠落受伤",
+        "水先人が転落、死亡",
+        "도선사 승선 중 추락 사망",
+    ]
+    assert all(extract.passes_keyword_filter(t, "") for t in pilot)
+    assert not any(extract.is_attack(t) for t in pilot)
+    assert not extract.passes_keyword_filter("Air traffic controller shortage", "Fluglotse")
+    assert "pilot_transfer" in extract.EVENT_TYPES and "pilot_transfer" in notify.EVENT_PT
