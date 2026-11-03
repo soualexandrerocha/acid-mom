@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import anthropic
 
-from . import collectors, db, dedup, extract, notify, site
+from . import collectors, db, dedup, extract, notify, revisao, site
 
 log = logging.getLogger("acidmom")
 
@@ -63,6 +63,7 @@ def cmd_process(conn, limit: int) -> None:
             elif not data["is_relevant"]:
                 status = "not_relevant"
             else:
+                data["summary_pt"] = revisao.revisar(data["summary_pt"])
                 mention_id = db.save_mention(conn, row["id"], data)
                 _, is_new = dedup.attach(conn, mention_id, data)
                 counts["new_incidents"] += is_new
