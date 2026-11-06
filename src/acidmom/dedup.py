@@ -183,8 +183,9 @@ def merge_into(conn: sqlite3.Connection, incident_id: int, mention: dict) -> Non
         (fill(row["event_date"], mention.get("event_date")), fill(row["vessel_name"], vessel.get("name")),
          fill(row["imo"], vessel.get("imo")), fill(row["vessel_type"], vessel.get("type")), severity,
          fill(row["location"], mention.get("location")), fill(row["country"], mention.get("country")),
-         # Basta uma fonte dizer a causa para a dúvida acabar.
-         lat, lon, approx, bool(row["cause_uncertain"] and mention.get("cause_uncertain")),
+         # Basta uma fonte levantar a dúvida (zona de conflito, causa não dita) para ela ficar:
+         # uma fonte que só não repete a dúvida não prova que não foi ataque (caso de Ormuz, 5/11).
+         lat, lon, approx, bool(row["cause_uncertain"] or mention.get("cause_uncertain")),
          highest(row["dead"], mention.get("dead")), highest(row["missing"], mention.get("missing")),
          highest(row["injured"], mention.get("injured")),
          row["pollution"] if row["pollution"] is not None else mention.get("pollution"),

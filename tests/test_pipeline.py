@@ -111,9 +111,18 @@ def test_uncertain_cause_gets_no_alert_but_is_marked(monkeypatch):
     assert notify.send_alerts(conn) == 0
     row = conn.execute("SELECT * FROM incident").fetchone()
     assert "pode ter sido ataque" in notify.format_incident(conn, row)[0]
-    # Uma fonte que explica a causa tira a dúvida.
+    # Outra fonte que não repete a dúvida não a tira, e o aviso continua bloqueado.
     add(conn, mention(severity="very_serious", event_date=today, cause_uncertain=False), 2)
-    assert conn.execute("SELECT cause_uncertain FROM incident").fetchone()[0] == 0
+    assert conn.execute("SELECT cause_uncertain FROM incident").fetchone()[0] == 1
+    assert notify.send_alerts(conn) == 0
+
+
+def test_no_immediate_alert_without_event_date(monkeypatch):
+    conn = db.connect(":memory:")
+    from test_dedup import add
+    add(conn, mention(severity="very_serious", event_date=None), 1)
+    monkeypatch.setattr(notify, "send_email", lambda s, t, h: True)
+    assert notify.send_alerts(conn) == 0
 
 
 def test_placeholder_vessel_names_are_dropped():

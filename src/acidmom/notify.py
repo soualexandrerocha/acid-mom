@@ -103,7 +103,9 @@ def send_alerts(conn: sqlite3.Connection) -> int:
         f"SELECT * FROM incident WHERE alert_sent_at IS NULL AND severity IN "
         f"({','.join('?' * len(ALERT_SEVERITIES))}) "
         f"AND NOT COALESCE(cause_uncertain, 0) "
-        f"AND COALESCE(event_date, date(created_at)) >= date('now', ?) ORDER BY created_at",
+        # Sem data do acidente, não há aviso imediato: costuma ser caso antigo contado de novo
+        # (ex.: série "Real Life Incident" da Marine Insight). Fica no mapa e no relatório.
+        f"AND event_date IS NOT NULL AND event_date >= date('now', ?) ORDER BY created_at",
         (*ALERT_SEVERITIES, f"-{ALERT_MAX_AGE_DAYS} days"),
     ).fetchall()
     for row in rows:
