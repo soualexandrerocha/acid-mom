@@ -127,4 +127,21 @@ def weekly_report(conn: sqlite3.Connection, days: int = 7) -> tuple[str, str, st
     if not rows:
         return subject, "Nenhum acidente registrado no período.", "<p>Nenhum acidente registrado no período.</p>"
     parts = [format_incident(conn, row) for row in rows]
-    return (subject, "\n\n".join(p[0] for p in parts), "<hr>".join(p[1] for p in parts))
+    reg_text, reg_html = _regions_summary(rows)
+    return (subject, reg_text + "\n\n" + "\n\n".join(p[0] for p in parts),
+            reg_html + "<hr>" + "<hr>".join(p[1] for p in parts))
+
+
+def _regions_summary(rows: list[sqlite3.Row]) -> tuple[str, str]:
+    """Tabela curta com quantos acidentes houve em cada região na semana."""
+    from .regioes import contar, regiao_da_linha
+    linhas = contar([{"region": regiao_da_linha(r), "severity": r["severity"]} for r in rows])
+    text = "Acidentes por região:\n" + "\n".join(
+        f"- {l['region']}: {l['total']} ({l['very_serious']} muito grave(s))" for l in linhas)
+    cells = "".join(
+        f"<tr><td>{html.escape(l['region'])}</td><td align=\"right\">{l['total']}</td>"
+        f"<td align=\"right\">{l['very_serious']}</td></tr>" for l in linhas)
+    table = ("<h3>Acidentes por região</h3><table cellpadding=\"4\" style=\"border-collapse:collapse\">"
+             "<tr><th align=\"left\">Região</th><th>Acidentes</th><th>Muito graves</th></tr>"
+             f"{cells}</table>")
+    return text, table

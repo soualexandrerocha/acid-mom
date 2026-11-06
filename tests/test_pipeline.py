@@ -78,6 +78,7 @@ def test_weekly_report_lists_incidents():
     subject, text, html_body = notify.weekly_report(conn)
     assert "1 acidente(s)" in subject and "Star Alpha" in text and "encalhe" in html_body
     assert "Advantage Spring" not in text
+    assert "Acidentes por região:" in text and "<h3>Acidentes por região</h3>" in html_body
 
 
 def test_attack_titles_never_reach_claude(monkeypatch):

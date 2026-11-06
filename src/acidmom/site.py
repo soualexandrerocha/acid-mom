@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .notify import EVENT_PT, SEVERITY_PT, _sources, _victims
+from .regioes import SEM_LOCAL, contar, regiao_da_linha
 
 DAYS = 90
 
@@ -40,6 +41,7 @@ def incidents_for_map(conn: sqlite3.Connection, days: int = DAYS) -> list[dict]:
             "lon": row["lon"],
             "approx": bool(row["coords_approx"]),
             "uncertain": bool(row["cause_uncertain"]),
+            "region": regiao_da_linha(row),
             "sources": [{"name": s["source"], "url": s["url"]} for s in _sources(conn, row["id"])],
         }
         for row in rows
@@ -55,9 +57,9 @@ PAGE = """<!doctype html>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  :root { --bg: #ffffff; --fg: #1f1f1f; --muted: #616161; --line: #e0e0e0; --card: #f7f7f7; }
+  :root { --bg: #ffffff; --fg: #1f1f1f; --muted: #616161; --line: #e0e0e0; --card: #f7f7f7; --bar: #1565c0; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #121212; --fg: #ececec; --muted: #a8a8a8; --line: #333333; --card: #1d1d1d; }
+    :root { --bg: #121212; --fg: #ececec; --muted: #a8a8a8; --line: #333333; --card: #1d1d1d; --bar: #64a0e6; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
@@ -74,6 +76,20 @@ PAGE = """<!doctype html>
   .card p { margin: 8px 0; }
   a { color: inherit; }
   .leaflet-popup-content { font: 13px/1.4 system-ui, sans-serif; }
+  section.regions { padding: 8px 16px 0; max-width: 760px; }
+  section.regions h2 { font-size: 16px; margin: 8px 0 2px; }
+  section.regions > p { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+  table.reg { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.reg th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  table.reg td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.reg td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bar { height: 8px; margin-top: 4px; background: var(--bar); border-radius: 0 4px 4px 0; min-width: 2px; }
+  table.reg tr.none td { color: var(--muted); }
+  table.reg tr.none .bar { background: var(--line); }
+  table.reg tr[data-region] { cursor: pointer; }
+  table.reg tr.active td { background: var(--card); }
+  #filtro { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+  #filtro button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -83,7 +99,18 @@ PAGE = """<!doctype html>
 </header>
 <div id="map"></div>
 <div class="legend">__LEGEND__ <span>Círculo tracejado: posição aproximada</span></div>
-<main id="list"></main>
+<section class="regions">
+  <h2>Acidentes por região</h2>
+  <p>Mesmo período do mapa. Toque numa região para ver só os acidentes dela na lista.</p>
+  <table class="reg">
+    <thead><tr><th>Região</th><th class="n">Acidentes</th><th class="n">Muito graves</th></tr></thead>
+    <tbody>__REGIONS__</tbody>
+  </table>
+</section>
+<main>
+<p id="filtro" hidden></p>
+<div id="list"></div>
+</main>
 <script>
 const incidents = __DATA__;
 const colors = __COLORS__;
@@ -106,6 +133,7 @@ const list = document.getElementById("list");
 incidents.forEach((i) => {
   const card = document.createElement("div");
   card.className = "card";
+  card.dataset.region = i.region;
   card.innerHTML =
     `<h2>${esc(i.title)}: ${esc(i.event)}</h2>` +
     `<div class="meta"><span class="dot" style="background:${colors[i.severity]}"></span>` +
@@ -123,10 +151,42 @@ incidents.forEach((i) => {
   }
 });
 if (!incidents.length) list.innerHTML = "<p>Nenhum acidente registrado no período.</p>";
+
+const filtro = document.getElementById("filtro");
+let ativa = null;
+function filtrar(regiao) {
+  ativa = ativa === regiao ? null : regiao;
+  list.querySelectorAll(".card").forEach((c) => { c.hidden = ativa !== null && c.dataset.region !== ativa; });
+  document.querySelectorAll("tr[data-region]").forEach((tr) => tr.classList.toggle("active", tr.dataset.region === ativa));
+  filtro.hidden = ativa === null;
+  if (ativa !== null) {
+    filtro.innerHTML = `Mostrando só: <b>${esc(ativa)}</b> <button type="button">mostrar todos</button>`;
+    filtro.querySelector("button").onclick = () => filtrar(ativa);
+    filtro.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+document.querySelectorAll("tr[data-region]").forEach((tr) => tr.addEventListener("click", () => filtrar(tr.dataset.region)));
 </script>
 </body>
 </html>
 """
+
+
+def regions_table(incidents: list[dict]) -> str:
+    """Linhas da tabela por região, com uma barra proporcional ao número de acidentes."""
+    linhas = contar(incidents)
+    maior = max((l["total"] for l in linhas), default=1)
+    out = []
+    for l in linhas:
+        nome = html.escape(l["region"])
+        classe = ' class="none"' if l["region"] == SEM_LOCAL else ""
+        largura = round(100 * l["total"] / maior)
+        out.append(
+            f'<tr{classe} data-region="{nome}" title="{nome}: {l["total"]} acidente(s)">'
+            f'<td>{nome}<div class="bar" style="width:{largura}%" aria-hidden="true"></div></td>'
+            f'<td class="n">{l["total"]}</td><td class="n">{l["very_serious"]}</td></tr>'
+        )
+    return "".join(out)
 
 
 def build_page(conn: sqlite3.Connection, out_dir: str | Path, days: int = DAYS) -> Path:
@@ -141,6 +201,7 @@ def build_page(conn: sqlite3.Connection, out_dir: str | Path, days: int = DAYS) 
             .replace("__COUNT__", str(len(incidents)))
             .replace("__UPDATED__", datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"))
             .replace("__LEGEND__", legend)
+            .replace("__REGIONS__", regions_table(incidents))
             .replace("__COLORS__", json.dumps(SEVERITY_COLOR))
             .replace("__DATA__", data))
     out = Path(out_dir)

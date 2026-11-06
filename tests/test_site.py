@@ -11,4 +11,5 @@ def test_build_page_embeds_recent_incidents(tmp_path):
     assert "Star Alpha" in page and "Velho" not in page
     assert "1 acidente(s)" in page
     assert '"approx": true' in page
+    assert "Acidentes por região" in page and 'data-region="Atlântico Sul"' in page  # Santos
     assert "</script> no meio" not in page
