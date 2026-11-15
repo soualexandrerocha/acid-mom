@@ -33,6 +33,7 @@ EVENT_PT = {
 ALERT_SEVERITIES = ("very_serious",)
 # Aviso imediato só para acidentes recentes; os mais antigos vão para o mapa e o relatório.
 ALERT_MAX_AGE_DAYS = 3
+SMTP_TIMEOUT = 60  # segundos
 
 
 def _sources(conn: sqlite3.Connection, incident_id: int) -> list[sqlite3.Row]:
@@ -90,15 +91,33 @@ def send_email(subject: str, text: str, html_body: str) -> bool:
     msg["To"] = to
     msg.set_content(text)
     msg.add_alternative(f"<html><body>{html_body}</body></html>", subtype="html")
-    with smtplib.SMTP(host, int(os.environ.get("SMTP_PORT") or 587)) as smtp:
+    # Um erro aqui (login recusado, servidor fora do ar) sobe para quem chamou, que decide o que fazer.
+    # O timeout evita que um servidor mudo prenda a rodada até o limite de 30 minutos do GitHub.
+    smtp = smtplib.SMTP(host, int(os.environ.get("SMTP_PORT") or 587), timeout=SMTP_TIMEOUT)
+    try:
         smtp.starttls()
         smtp.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
         smtp.send_message(msg)
+    except BaseException:
+        smtp.close()
+        raise
+    # O e-mail já foi aceito pelo servidor. Um erro ao desligar não pode fazê-lo parecer
+    # não enviado, senão a próxima rodada mandaria o mesmo aviso de novo.
+    try:
+        smtp.quit()
+    except (smtplib.SMTPException, OSError) as exc:
+        log.warning("E-mail enviado, mas a conexão não fechou direito: %s", exc)
+        smtp.close()
     return True
 
 
 def send_alerts(conn: sqlite3.Connection) -> int:
-    """Um e-mail por acidente muito grave ainda não avisado."""
+    """Um e-mail por acidente muito grave ainda não avisado.
+
+    Cada acidente só é marcado como avisado depois que o e-mail sai. Se um envio falhar, o erro
+    sobe e os acidentes que faltavam continuam sem marca: a próxima rodada tenta de novo, e os que
+    já saíram não se repetem.
+    """
     rows = conn.execute(
         f"SELECT * FROM incident WHERE alert_sent_at IS NULL AND severity IN "
         f"({','.join('?' * len(ALERT_SEVERITIES))}) "

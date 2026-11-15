@@ -173,3 +173,98 @@ def test_pilot_transfer_accidents_pass_filter():
     assert not any(extract.is_attack(t) for t in pilot)
     assert not extract.passes_keyword_filter("Air traffic controller shortage", "Fluglotse")
     assert "pilot_transfer" in extract.EVENT_TYPES and "pilot_transfer" in notify.EVENT_PT
+
+
+def _avisos_de_hoje(conn, n):
+    from test_dedup import add
+    today = datetime.now(timezone.utc).date().isoformat()
+    for i in range(n):
+        add(conn, mention(severity="very_serious", event_date=today,
+                          vessels=[{"name": f"Navio {i}", "imo": "", "type": "", "flag": ""}],
+                          location=f"Lugar {i}", lat=10.0 * i, lon=10.0 * i), i + 1)
+    conn.commit()
+
+
+def test_failed_email_is_retried_next_round_without_repeats(monkeypatch):
+    conn = db.connect(":memory:")
+    _avisos_de_hoje(conn, 3)
+    assert conn.execute("SELECT COUNT(*) FROM incident").fetchone()[0] == 3
+    sent = []
+
+    def falha_no_segundo(s, t, h):
+        if len(sent) == 1:
+            raise OSError("login recusado")
+        sent.append(s)
+        return True
+
+    monkeypatch.setattr(notify, "send_email", falha_no_segundo)
+    try:
+        notify.send_alerts(conn)
+        assert False, "o erro deveria subir"
+    except OSError:
+        pass
+    assert len(sent) == 1
+    assert conn.execute("SELECT COUNT(*) FROM incident WHERE alert_sent_at IS NULL").fetchone()[0] == 2
+
+    # Na rodada seguinte o e-mail volta: saem só os dois que faltavam, sem repetir o primeiro.
+    monkeypatch.setattr(notify, "send_email", lambda s, t, h: sent.append(s) or True)
+    assert notify.send_alerts(conn) == 2
+    assert len(sent) == 3 and len(set(sent)) == 3
+    assert notify.send_alerts(conn) == 0
+
+
+def test_email_failure_still_builds_map_and_exits_with_code_3(monkeypatch, tmp_path):
+    banco = tmp_path / "acidmom.sqlite"
+    conn = db.connect(str(banco))
+    _avisos_de_hoje(conn, 1)
+    conn.close()
+
+    def login_recusado(s, t, h):
+        raise notify.smtplib.SMTPAuthenticationError(535, b"senha errada")
+
+    monkeypatch.setattr(notify, "send_email", login_recusado)
+    try:
+        cli.main(["avisar", "--banco", str(banco)])
+        assert False, "deveria sair com o código 3"
+    except SystemExit as exc:
+        assert exc.code == cli.EXIT_EMAIL_FAILED
+    try:
+        cli.main(["mapa", "--banco", str(banco), "--site", str(tmp_path / "site")])
+    except SystemExit:
+        assert False, "o mapa não envia e-mail"
+    assert (tmp_path / "site" / "index.html").exists()
+
+
+def test_rodar_builds_map_even_when_email_fails(monkeypatch, tmp_path):
+    banco = tmp_path / "acidmom.sqlite"
+    conn = db.connect(str(banco))
+    _avisos_de_hoje(conn, 1)
+    conn.close()
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(cli.collectors, "collect_all", lambda config: [])
+    monkeypatch.setattr(notify, "send_email", lambda s, t, h: (_ for _ in ()).throw(OSError("fora do ar")))
+    fontes = tmp_path / "fontes.toml"
+    fontes.write_text("")
+    try:
+        cli.main(["rodar", "--banco", str(banco), "--fontes", str(fontes), "--site", str(tmp_path / "site")])
+        assert False, "deveria sair com o código 3"
+    except SystemExit as exc:
+        assert exc.code == 3
+    assert (tmp_path / "site" / "index.html").exists()
+    conn = db.connect(str(banco))
+    assert conn.execute("SELECT alert_sent_at FROM incident").fetchone()[0] is None  # fica para a próxima
+
+
+def test_send_email_counts_as_sent_when_only_quit_fails(monkeypatch):
+    class FakeSMTP:
+        def __init__(self, *a, **k): pass
+        def starttls(self): pass
+        def login(self, u, p): pass
+        def send_message(self, msg): pass
+        def quit(self): raise notify.smtplib.SMTPServerDisconnected("caiu")
+        def close(self): pass
+
+    monkeypatch.setattr(notify.smtplib, "SMTP", FakeSMTP)
+    for k, v in {"SMTP_HOST": "h", "EMAIL_TO": "a@b", "SMTP_USER": "u", "SMTP_PASSWORD": "p"}.items():
+        monkeypatch.setenv(k, v)
+    assert notify.send_email("assunto", "texto", "<p>html</p>") is True
