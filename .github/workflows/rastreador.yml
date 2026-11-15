@@ -48,7 +48,10 @@ jobs:
             git show origin/dados:acidmom.sqlite > data/acidmom.sqlite
           fi
 
+      # Se só o e-mail falhar, o programa termina com o código 3: a rodada segue para guardar
+      # o banco e publicar o mapa, e o último passo ("Conferir o e-mail") marca a rodada como falha.
       - name: Rodar
+        id: rodar
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
@@ -58,11 +61,19 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           ACIDMOM_MODEL: ${{ vars.ACIDMOM_MODEL }}
         run: |
+          set +e
           if [ "${{ github.event.schedule }}" = "17 11 * * 1" ]; then
             acidmom semanal
           else
             acidmom "${{ inputs.comando || 'rodar' }}"
           fi
+          status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "::error::Falha no envio de e-mail. Banco e mapa serão atualizados mesmo assim."
+            echo "email_falhou=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$status"
 
       - name: Guardar o banco
         run: |
@@ -93,6 +104,13 @@ jobs:
         id: mapa
         if: hashFiles('site/index.html') != ''
         uses: actions/deploy-pages@v4
+
+      # Deixa a rodada vermelha no GitHub quando o e-mail falhou, para a falha não passar despercebida.
+      - name: Conferir o e-mail
+        if: steps.rodar.outputs.email_falhou == 'true'
+        run: |
+          echo "::error::O e-mail não saiu nesta rodada (veja o passo Rodar). Confira o segredo SMTP_PASSWORD."
+          exit 1
 
   # Espera até o minuto 17 da hora seguinte e dispara a próxima rodada, a não ser que já haja
   # outra na fila (por exemplo, uma do agendamento): assim só existe uma corrente de rodadas.

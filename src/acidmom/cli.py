@@ -11,6 +11,7 @@
 import argparse
 import logging
 import os
+import sys
 import tomllib
 from datetime import datetime, timedelta, timezone
 
@@ -19,6 +20,9 @@ import anthropic
 from . import collectors, db, dedup, extract, notify, revisao, site
 
 log = logging.getLogger("acidmom")
+
+# Código de saída quando só o e-mail falhou: o banco e o mapa foram atualizados mesmo assim.
+EXIT_EMAIL_FAILED = 3
 
 # Itens publicados há mais tempo que isso não são acidentes novos (ex.: avisos náuticos antigos ainda ativos).
 MAX_AGE = timedelta(days=30)
@@ -107,12 +111,23 @@ def main(argv: list[str] | None = None) -> None:
             cmd_collect(conn, tomllib.load(f))
     if args.comando in ("processar", "rodar"):
         cmd_process(conn, args.limite)
-    if args.comando in ("avisar", "rodar"):
-        cmd_alert(conn)
-    if args.comando == "semanal":
-        cmd_weekly(conn)
+    email_failed = False
+    if args.comando in ("avisar", "rodar", "semanal"):
+        # Uma falha no e-mail (ex.: senha do Gmail trocada) não pode impedir de gerar o mapa nem de
+        # guardar o banco. O erro fica no log e no código de saída, para aparecer no GitHub.
+        try:
+            if args.comando == "semanal":
+                cmd_weekly(conn)
+            else:
+                cmd_alert(conn)
+        except Exception:
+            log.exception("FALHA NO E-MAIL: o envio não funcionou. Os avisos que não saíram "
+                          "serão tentados de novo na próxima rodada.")
+            email_failed = True
     if args.comando in ("mapa", "rodar"):
         log.info("Mapa gerado em %s", site.build_page(conn, args.site))
+    if email_failed:
+        sys.exit(EXIT_EMAIL_FAILED)
 
 
 if __name__ == "__main__":
