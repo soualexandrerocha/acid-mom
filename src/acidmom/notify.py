@@ -1,6 +1,7 @@
 """E-mails: aviso imediato de acidente muito grave e relatório semanal."""
 
 import html
+import json
 import logging
 import os
 import smtplib
@@ -48,8 +49,16 @@ def _sources(conn: sqlite3.Connection, incident_id: int) -> list[sqlite3.Row]:
 
 def _victims(row: sqlite3.Row) -> str:
     parts = [f"{row[k]} {label}" for k, label in
-             (("dead", "morto(s)"), ("missing", "desaparecido(s)"), ("injured", "ferido(s)")) if row[k]]
+             (("dead", "morto(s)"), ("missing", "desaparecido(s)"), ("injured", "ferido(s)"), ("rescued", "resgatado(s)")) if row[k] is not None]
     return ", ".join(parts)
+
+
+def historical_summary(conn, row):
+    revision = conn.execute("SELECT evidence FROM casualty_revision WHERE incident_id=? ORDER BY id DESC LIMIT 1", (row["id"],)).fetchone()
+    summary = row["summary"] or ""
+    if revision:
+        return "Relato inicial (histórico): " + summary + " Atualização de vítimas: " + revision["evidence"]
+    return summary
 
 
 def format_incident(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[str, str]:
@@ -66,10 +75,15 @@ def format_incident(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[str, st
     if row["cause_uncertain"]:
         details.append(("Causa", "incerta: zona de conflito, pode ter sido ataque"))
     sources = _sources(conn, row["id"])
-    text = "\n".join([title, row["summary"] or "", *(f"{k}: {v}" for k, v in details), "Fontes:",
+    revision = conn.execute("SELECT * FROM casualty_revision WHERE incident_id=? ORDER BY id DESC LIMIT 1", (row["id"],)).fetchone()
+    summary = row["summary"] or ""
+    if revision:
+        summary = "Relato inicial (histórico): " + summary
+        details.append(("Atualização de vítimas", revision["evidence"]))
+    text = "\n".join([title, summary, *(f"{k}: {v}" for k, v in details), "Fontes:",
                       *(f"- {s['source']}: {s['url']}" for s in sources)])
     html_body = (
-        f"<h3>{html.escape(title)}</h3><p>{html.escape(row['summary'] or '')}</p><ul>"
+        f"<h3>{html.escape(title)}</h3><p>{html.escape(summary)}</p><ul>"
         + "".join(f"<li><b>{k}:</b> {html.escape(str(v))}</li>" for k, v in details)
         + "</ul><p>Fontes:</p><ul>"
         + "".join(f"<li><a href=\"{html.escape(s['url'])}\">{html.escape(s['source'])}</a>: "
@@ -133,7 +147,7 @@ def send_alerts(conn: sqlite3.Connection) -> int:
         if send_email(subject, text, html_body):
             conn.execute("UPDATE incident SET alert_sent_at = datetime('now') WHERE id = ?", (row["id"],))
             conn.commit()
-    return len(rows)
+    return len(rows) + send_casualty_corrections(conn)
 
 
 def weekly_report(conn: sqlite3.Connection, days: int = 7) -> tuple[str, str, str]:
@@ -166,3 +180,28 @@ def _regions_summary(rows: list[sqlite3.Row]) -> tuple[str, str]:
              "<tr><th align=\"left\">Região</th><th>Acidentes</th><th>Muito graves</th></tr>"
              f"{cells}</table>")
     return text, table
+
+
+def send_casualty_corrections(conn: sqlite3.Connection) -> int:
+    """Separate durable outbox, only for revisions of previously alerted incidents.
+
+    SMTP cannot promise exactly-once across a process crash after acceptance. Successful
+    sends are marked individually; ordinary failures leave the revision pending for retry.
+    """
+    rows = conn.execute("""SELECT r.*, i.vessel_name FROM casualty_revision r
+        JOIN incident i ON i.id=r.incident_id
+        WHERE r.pending_alert=1 AND r.sent_at IS NULL ORDER BY r.id""").fetchall()
+    labels = {"dead": "mortos", "missing": "desaparecidos", "injured": "feridos", "rescued": "resgatados"}
+    for row in rows:
+        before, after = json.loads(row["previous_data"]), json.loads(row["current_data"])
+        changes = [f"{labels[k]}: {before[k] if before[k] is not None else 'não informado'} → {after[k]}"
+                   for k in labels if before[k] != after[k]]
+        source = conn.execute("""SELECT s.url FROM source_item s JOIN mention m
+            ON m.source_item_id=s.id WHERE m.id=?""", (row["mention_id"],)).fetchone()
+        text = "\n".join([f"Atualização de vítimas: {row['vessel_name'] or 'navio de carga'}",
+                          *changes, f"{'Publicação da confirmação' if row['time_basis'] == 'publication_assertion' else 'Situação em'}: {row['effective_at']}", row["evidence"], source["url"]])
+        subject = f"[Acid Mom] Atualização de vítimas: {row['vessel_name'] or 'navio de carga'} (revisão {row['id']})"
+        if send_email(subject, text, "<pre>" + html.escape(text) + "</pre>"):
+            conn.execute("UPDATE casualty_revision SET sent_at=datetime('now') WHERE id=?", (row["id"],))
+            conn.commit()
+    return len(rows)

@@ -1,11 +1,14 @@
 """Deduplicação: decide se uma menção nova é um acidente já conhecido ou um acidente novo."""
 
+import json
 import math
 import re
 import sqlite3
 import unicodedata
 from datetime import date, timedelta
 from difflib import SequenceMatcher
+
+from .casualties import apply_casualty_update
 
 MATCH_THRESHOLD = 0.8
 DATE_WINDOW_DAYS = 3
@@ -68,15 +71,15 @@ def match_score(mention: dict, incident: sqlite3.Row) -> float:
     gap = abs((m_date - i_date).days) if m_date and i_date else 0
     if gap > SAME_NAME_DATE_WINDOW_DAYS:
         return 0.0
-    if gap > DATE_WINDOW_DAYS:
-        # Só o mesmo navio (mesmo IMO ou nome quase igual) passa da janela curta.
-        return 1.0 if _same_vessel(mention, incident) else 0.0
     # Só compara distância entre coordenadas exatas: as aproximadas podem estar longe do ponto real.
     if (None not in (mention.get("lat"), mention.get("lon"), incident["lat"], incident["lon"])
             and not mention.get("coords_approximate") and not incident["coords_approx"]
             and distance_km(mention["lat"], mention["lon"], incident["lat"], incident["lon"]) > MAX_DISTANCE_KM):
         return 0.0
 
+    if gap > DATE_WINDOW_DAYS:
+        # Só o mesmo navio (mesmo IMO ou nome quase igual) passa da janela curta.
+        return 1.0 if _same_vessel(mention, incident) else 0.0
     best = 0.0
     for vessel in mention.get("vessels", []):
         if vessel.get("imo") and vessel["imo"] == incident["imo"]:
@@ -96,27 +99,121 @@ def match_score(mention: dict, incident: sqlite3.Row) -> float:
     return best
 
 
+def _linked_reports(conn, incident_id):
+    rows = conn.execute(
+        "SELECT m.data FROM mention m JOIN incident_mention im ON im.mention_id = m.id "
+        "WHERE im.incident_id = ? ORDER BY m.id", (incident_id,)
+    ).fetchall()
+    return [json.loads(row["data"]) for row in rows]
+
+
+def _with_history(conn, row, reports=None):
+    """Keep participant identity and evidence in existing, provenance-linked mentions."""
+    result = dict(row)
+    reports = _linked_reports(conn, row["id"]) if reports is None else reports
+    vessels = [{"name": row["vessel_name"], "imo": row["imo"], "type": row["vessel_type"]}]
+    for report in reports:
+        for vessel in report.get("vessels", []):
+            if vessel not in vessels:
+                vessels.append(vessel)
+    result["vessels"] = vessels
+    result["reports"] = [{k: (r.get(k)[:2000] if isinstance(r.get(k), str) else r.get(k)) for k in (
+        "vessels", "event_date", "event_date_basis", "event_date_evidence",
+        "location", "summary_pt", "evidence", "dead", "missing", "injured")}
+        for r in reports[-5:]]
+    return result
+
+
+def _participant_views(row):
+    vessels = [v for v in row["vessels"] if v.get("name") or v.get("imo")]
+    return [dict(row) | {"vessel_name": v.get("name"), "imo": v.get("imo")}
+            for v in vessels] or [dict(row)]
+
+
+def _strong_place(mention, row):
+    # Approximate coordinates alone are not evidence that two collisions share a berth.
+    if (None not in (mention.get("lat"), mention.get("lon"), row["lat"], row["lon"])
+            and not mention.get("coords_approximate") and not row["coords_approx"]):
+        return distance_km(mention["lat"], mention["lon"], row["lat"], row["lon"]) <= 10
+    place = normalize_name(mention.get("location") or "")
+    country = normalize_name(mention.get("country") or "")
+    return (len(place.split()) >= 3 and place == normalize_name(row["location"] or "")
+            and bool(country) and country == normalize_name(row["country"] or ""))
+
+
+def _same_day_casualty_lead(mention, row):
+    """Admit review, never auto-merge, when one report only names a country."""
+    day = _parse_date(mention.get("event_date"))
+    country = normalize_name(mention.get("country") or "")
+    if not day or day != _parse_date(row["event_date"]) or not country:
+        return False
+    if country != normalize_name(row["country"] or ""):
+        return False
+    places = [normalize_name(location or "") for location in (mention.get("location"), row["location"])]
+    if not any(place in ("", country, f"{country} {country}") for place in places):
+        return False
+    if (None not in (mention.get("lat"), mention.get("lon"), row["lat"], row["lon"])
+            and not mention.get("coords_approximate") and not row["coords_approx"]):
+        return False  # Both exact placements must instead satisfy the strong-place gate.
+    return any(type(mention.get(k)) is int and mention[k] >= 5 and mention[k] == row[k]
+               for k in ("dead", "missing", "injured"))
+
+
+def reconciled_event_date(conn, row, mention):
+    """Only replace an inferred/publication date with explicitly evidenced event dating.
+
+    Legacy unknown provenance and conflicting explicit dates remain unresolved in the
+    linked reports; neither arrival order nor article publication time settles them.
+    """
+    old, new = row["event_date"], mention.get("event_date")
+    if not old:
+        return new or None
+    if not _parse_date(new) or old == new:
+        return old
+    if mention.get("event_date_basis") != "explicit" or not mention.get("event_date_evidence"):
+        return old
+    supporting = [r for r in _linked_reports(conn, row["id"]) if r.get("event_date") == old]
+    if supporting and all(r.get("event_date_basis") in ("inferred", "publication") for r in supporting):
+        return new
+    return old
+
+
 def find_match(conn: sqlite3.Connection, mention: dict) -> tuple[int, float] | None:
     """Procura um acidente compatível entre os recentes. Devolve (id, escore) ou None."""
     ref = _parse_date(mention.get("event_date")) or date.today()
     since = (ref - timedelta(days=SAME_NAME_DATE_WINDOW_DAYS + 3)).isoformat()
+    until = (ref + timedelta(days=SAME_NAME_DATE_WINDOW_DAYS)).isoformat()
     rows = conn.execute(
-        "SELECT * FROM incident WHERE COALESCE(event_date, created_at) >= ?", (since,)
+        "SELECT * FROM incident WHERE COALESCE(event_date, substr(created_at, 1, 10)) BETWEEN ? AND ?",
+        (since, until),
     ).fetchall()
-    scored = [(row["id"], match_score(mention, row)) for row in rows]
+    # Batch historical identity lookup rather than one query per incident.
+    histories = {row["id"]: [] for row in rows}
+    ids = list(histories)
+    for start in range(0, len(ids), 500):
+        batch = ids[start:start + 500]
+        for linked in conn.execute(
+            "SELECT im.incident_id, m.data FROM mention m JOIN incident_mention im "
+            "ON im.mention_id = m.id WHERE im.incident_id IN (" + ",".join("?" for _ in batch) + ") ORDER BY m.id",
+            batch,
+        ):
+            histories[linked["incident_id"]].append(json.loads(linked["data"]))
+    scored = [(row["id"], max(match_score(mention, view)
+                              for view in _participant_views(_with_history(conn, row, histories[row["id"]]))))
+              for row in rows]
     scored = [s for s in scored if s[1] >= MATCH_THRESHOLD]
     return max(scored, key=lambda s: s[1]) if scored else None
 
 
-def judge_candidates(conn: sqlite3.Connection, mention: dict) -> list[sqlite3.Row]:
+def judge_candidates(conn: sqlite3.Connection, mention: dict) -> list[dict]:
     """Acidentes que podem ser o mesmo evento, mas que as regras não conseguem decidir.
 
     Caso típico: notícias em vários idiomas sobre o mesmo naufrágio, sem o nome do navio
     e com lugares vagos ("Mar Mediterrâneo", "ao largo de Chipre").
     """
     ref = _parse_date(mention.get("event_date")) or date.today()
-    since = (ref - timedelta(days=DATE_WINDOW_DAYS)).isoformat()
-    until = (ref + timedelta(days=DATE_WINDOW_DAYS)).isoformat()
+    since = (ref - timedelta(days=SAME_NAME_DATE_WINDOW_DAYS)).isoformat()
+    until = (ref + timedelta(days=SAME_NAME_DATE_WINDOW_DAYS)).isoformat()
     rows = conn.execute(
         """SELECT * FROM incident WHERE event_type = ?
                AND COALESCE(event_date, substr(created_at, 1, 10)) BETWEEN ? AND ?
@@ -126,8 +223,17 @@ def judge_candidates(conn: sqlite3.Connection, mention: dict) -> list[sqlite3.Ro
     named = any(v.get("name") for v in mention.get("vessels", []))
     out = []
     for row in rows:
-        # Dois nomes diferentes são dois navios diferentes.
-        if named and row["vessel_name"] and _name_ratio(mention, row) < 0.6:
+        row = _with_history(conn, row)
+        views = _participant_views(row)
+        disjoint = named and row["vessel_name"] and max(_name_ratio(mention, v) for v in views) < 0.6
+        # Different names can be different participants, not necessarily different collisions.
+        # Place/time only admits review; it must never force an automatic merge.
+        if disjoint and not (mention.get("event_type") == "collision"
+                             and (_strong_place(mention, row) or _same_day_casualty_lead(mention, row))):
+            continue
+        old_date = _parse_date(row["event_date"])
+        gap = abs((ref - old_date).days) if old_date else 0
+        if gap > DATE_WINDOW_DAYS and not _strong_place(mention, row):
             continue
         if (None not in (mention.get("lat"), mention.get("lon"), row["lat"], row["lon"])
                 and distance_km(mention["lat"], mention["lon"], row["lat"], row["lon"]) > JUDGE_MAX_DISTANCE_KM):
@@ -158,16 +264,18 @@ def create_incident(conn: sqlite3.Connection, mention: dict) -> int:
 
 
 def merge_into(conn: sqlite3.Connection, incident_id: int, mention: dict) -> None:
-    """Completa o acidente com a menção nova: preenche vazios e mantém os números mais altos."""
+    """Completa campos estáveis; vítimas são atualizadas com evidência após ligar a menção."""
     row = conn.execute("SELECT * FROM incident WHERE id = ?", (incident_id,)).fetchone()
     vessel = _first_vessel(mention)
+    if row["vessel_name"] or row["imo"]:
+        # A second collision participant must not donate its IMO/type to the primary vessel.
+        vessel = next((v for v in mention.get("vessels", [])
+                       if (v.get("imo") and v["imo"] == row["imo"])
+                       or (v.get("name") and row["vessel_name"]
+                           and normalize_name(v["name"]) == normalize_name(row["vessel_name"]))), {})
 
     def fill(current, new):
         return current if current not in (None, "") else (new or None)
-
-    def highest(current, new):
-        values = [v for v in (current, new) if v is not None]
-        return max(values) if values else None
 
     severity = max(row["severity"], mention["severity"], key=lambda s: SEVERITY_RANK.get(s, 0))
     # Coordenadas exatas substituem as aproximadas; entre duas aproximadas, fica a primeira.
@@ -177,17 +285,14 @@ def merge_into(conn: sqlite3.Connection, incident_id: int, mention: dict) -> Non
     conn.execute(
         """UPDATE incident SET event_date = ?, vessel_name = ?, imo = ?, vessel_type = ?,
                severity = ?, location = ?, country = ?, lat = ?, lon = ?, coords_approx = ?,
-               cause_uncertain = ?, dead = ?, missing = ?,
-               injured = ?, pollution = ?, updated_at = datetime('now')
+               cause_uncertain = ?, pollution = ?, updated_at = datetime('now')
            WHERE id = ?""",
-        (fill(row["event_date"], mention.get("event_date")), fill(row["vessel_name"], vessel.get("name")),
+        (reconciled_event_date(conn, row, mention), fill(row["vessel_name"], vessel.get("name")),
          fill(row["imo"], vessel.get("imo")), fill(row["vessel_type"], vessel.get("type")), severity,
          fill(row["location"], mention.get("location")), fill(row["country"], mention.get("country")),
          # Basta uma fonte levantar a dúvida (zona de conflito, causa não dita) para ela ficar:
          # uma fonte que só não repete a dúvida não prova que não foi ataque (caso de Ormuz, 5/11).
          lat, lon, approx, bool(row["cause_uncertain"] or mention.get("cause_uncertain")),
-         highest(row["dead"], mention.get("dead")), highest(row["missing"], mention.get("missing")),
-         highest(row["injured"], mention.get("injured")),
          row["pollution"] if row["pollution"] is not None else mention.get("pollution"),
          incident_id),
     )
@@ -216,4 +321,5 @@ def attach(conn: sqlite3.Connection, mention_id: int, mention: dict, judge=None)
         "INSERT INTO incident_mention (incident_id, mention_id, match_score) VALUES (?, ?, ?)",
         (incident_id, mention_id, score),
     )
+    apply_casualty_update(conn, incident_id, mention_id, mention, is_new=is_new)
     return incident_id, is_new

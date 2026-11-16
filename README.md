@@ -38,6 +38,10 @@ Depois disso, vá em **Actions → Rastreador → Run workflow** para rodar a pr
 
 O banco (um arquivo SQLite) fica no branch `dados` deste repositório, separado do código. Cada execução baixa o banco, atualiza e grava de volta.
 
+Relatos são guardados separadamente dos acidentes consolidados. Uma colisão pode envolver mais de um navio: divergências de nome, data ou tipo exigem evidência adicional para unir os registros. A data de publicação não é a data do acidente.
+
+Uma informação posterior sobre pessoas desaparecidas pode corrigir o estado atual sem apagar o relato inicial. A correção não é um novo acidente. As regras novas não refazem automaticamente os agrupamentos e alertas antigos.
+
 ## Para quem for mexer no código
 
 ```bash

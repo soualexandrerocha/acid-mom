@@ -49,11 +49,25 @@ CREATE TABLE IF NOT EXISTS incident (
     alert_sent_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS casualty_revision (
+    id INTEGER PRIMARY KEY,
+    incident_id INTEGER NOT NULL REFERENCES incident(id),
+    mention_id INTEGER NOT NULL UNIQUE REFERENCES mention(id),
+    previous_data TEXT NOT NULL,
+    current_data TEXT NOT NULL,
+    evidence TEXT NOT NULL,
+    effective_at TEXT NOT NULL,
+    time_basis TEXT NOT NULL,
+    pending_alert INTEGER NOT NULL DEFAULT 0,
+    sent_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS incident_mention (
     incident_id INTEGER NOT NULL REFERENCES incident(id),
     mention_id INTEGER NOT NULL UNIQUE REFERENCES mention(id),
     match_score REAL NOT NULL
 );
+CREATE INDEX IF NOT EXISTS incident_mention_incident_idx ON incident_mention(incident_id);
 """
 
 
@@ -81,6 +95,8 @@ def connect(path: str | Path) -> sqlite3.Connection:
     for column in ("coords_approx", "cause_uncertain"):
         if column not in columns:
             conn.execute(f"ALTER TABLE incident ADD COLUMN {column} INTEGER")
+    if "rescued" not in columns:
+        conn.execute("ALTER TABLE incident ADD COLUMN rescued INTEGER")
     return conn
 
 

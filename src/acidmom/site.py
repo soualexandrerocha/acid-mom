@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .notify import EVENT_PT, SEVERITY_PT, _sources, _victims
+from .notify import historical_summary, EVENT_PT, SEVERITY_PT, _sources, _victims
 from .regioes import SEM_LOCAL, contar, regiao_da_linha
 
 DAYS = 90
@@ -36,7 +36,7 @@ def incidents_for_map(conn: sqlite3.Connection, days: int = DAYS) -> list[dict]:
             "place": ", ".join(filter(None, [row["location"], row["country"]])) or "local não informado",
             "vessel_type": row["vessel_type"] or "",
             "victims": _victims(row),
-            "summary": row["summary"] or "",
+            "summary": historical_summary(conn, row),
             "lat": row["lat"],
             "lon": row["lon"],
             "approx": bool(row["coords_approx"]),
